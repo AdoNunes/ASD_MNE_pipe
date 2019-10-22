@@ -68,6 +68,8 @@ class MNEprepro():
         self.pth_raw = glob.glob(op.join(self.pth_subject, subject) + '_' +
                                  experiment + '*')[-1]
         self.raw = mne.io.read_raw_ctf(self.pth_raw, preload=False)
+        if self.raw.compensation_grade != 3:
+            self.raw.apply_gradient_compensation(0)
 
     def check_outdir(self):
         from os import makedirs
@@ -115,15 +117,9 @@ class MNEprepro():
                 csv_dat.append(col)
         return csv_dat[-1]
 
-    def wait_forFunc(func, arg):
-        """ Will wait till function returns """
-        thread = threading.Thread(target=func, args=arg)
-        thread.start()
-        # wait here for the result to be available before continuing
-        thread.join()
-
-    def run_thr(self, raw_copy):
-        self.ica = self.wait_forFunc(self.plot_ICA, raw_copy)
+    def detectMov(self):
+        thr = .5  # mm
+        pos = mne.chpi._calculate_head_pos_ctf(self.raw)
 
     def run_ICA(self, overwrite=False):
         fname = self.subject + '_' + self.experiment + '-ica.fif.gz'
@@ -134,17 +130,17 @@ class MNEprepro():
             from mne.preprocessing import ICA
             raw_copy = self.raw.copy().load_data().filter(1, 45)
             self.ica = ICA(method='fastica', random_state=42,
-                           n_components=0.98)
+                           n_components=0.99, max_iter=500)
             picks = mne.pick_types(raw_copy.info, meg=True, ref_meg=False,
                                    stim=False, exclude='bads')
             reject = dict(grad=4000e-13, mag=4e-12)  # what rejec intervals?
             self.ica.fit(raw_copy, picks=picks, reject=reject, decim=3)
 
     def plot_ICA(self):
-        raw_copy = self.raw.copy().load_data().filter(1, 45)
-        fig1 = self.ica.plot_components()
-        fig2 = self.ica.plot_sources(raw_copy)
-        return fig1, fig2
+        raw_copy = self.raw.copy().load_data().filter(1, 45) \
+                    .pick_types(meg=True, ref_meg=False)
+        self.ica.plot_components(picks=np.arange(19))
+        self.ica.plot_sources(raw_copy, block=True)
 
     def save_ICA(self, overwrite=False):
         fname = self.subject + '_' + self.experiment + '-ica.fif.gz'
