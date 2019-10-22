@@ -13,7 +13,7 @@ appnope.nope()
 
 from MNEprepro import MNEprepro
 import time
-
+import socket
 
 start = time.time()
 pause_for = 0.0005
@@ -25,6 +25,7 @@ if time_past > pause_for*3:
     import appnope
     appnope.nope()
 
+
 # %% Create variables for class object
 paths_dic = {  # "root": "/Volumes/Data_projec/data/REPO/MEG_repo",
         "root": "~/Desktop/projects/MNE/data",
@@ -32,6 +33,15 @@ paths_dic = {  # "root": "/Volumes/Data_projec/data/REPO/MEG_repo",
         "subj_anat": 'anatomy',
         "out": "~/Desktop/projects/MNE/data_prep"
     }
+
+Host = (socket.gethostname())
+
+if Host == 'owners-MacBook-Pro.local':
+    paths_dic['root'] = "~/Desktop/projects/MNE/data"
+    paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
+elif Host == 'sc-155014':
+    paths_dic['root'] = "~/Desktop/REPO/MEG_REPO/MEG_children"
+    paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
 
 subject = '18011014C'
 experiment = 'Movie'
@@ -46,11 +56,11 @@ raw_prepro.detectBadChannels(save_csv=True)
 #raw_prepro.detectMov()
 
 # %% Create ICA components
-raw_prepro.run_ICA(overwrite=True)
+raw_prepro.run_ICA(overwrite=False)
 raw_prepro.plot_ICA()
 print("didnt stoppppp")
 # %% Save ICA components
-raw_prepro.save_ICA(overwrite=True)
+raw_prepro.save_ICA(overwrite=False)
 
 
 
