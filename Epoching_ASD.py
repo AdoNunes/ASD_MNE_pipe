@@ -39,9 +39,9 @@ def get_photodiode_events(raw):
     Ind_PD_ON = []
     Ind_PD_OFF = []
     for ind, n in enumerate(T_PD[0,:]):
-        if n == True and T_PD[0,ind-1] == False:
+        if n == True and T_PD[0,ind-1] == False and np.all(T_PD[0,ind-10:ind-1] == False):
             Ind_PD_ON.append(ind)
-        elif  n == False and T_PD[0,ind-1] == True:
+        elif  n == False and T_PD[0,ind-1] == True and np.all(T_PD[0,ind-10:ind-1] == True):
             Ind_PD_OFF.append(ind)
     return PD_ts, Ind_PD_ON, Ind_PD_OFF, T_PD
 
@@ -126,7 +126,7 @@ def get_events(raw, task, plot=1):
         plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF,Trig_ts, events)    
     return event_id, events
 
-data_path = '/Users/nkozhemi/Documents/MATLAB/18000P/18000P_CarTask_20180801_04.ds'
+data_path = '/Users/nkozhemi/Desktop/REPO/MEG_repo/MEG_children/18011007A/18011007A_Flanker_20190518_03.ds'
 data_path = '/Users/nkozhemi/Documents/MATLAB/18000P/18000P_Flanker_20180801_02.ds'
 data_path = '/Users/nkozhemi/Documents/MATLAB/18000P/18000P_Movie_20180801_03.ds'
 data_path = '/Users/nkozhemi/Documents/MATLAB/18069P/18069P_CarTask_20180816_04.ds'
