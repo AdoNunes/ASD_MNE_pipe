@@ -43,17 +43,17 @@ elif Host == 'sc-155014':
     paths_dic['root'] = "~/Desktop/REPO/MEG_REPO/MEG_children"
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
 
-subject = '18011014C'
+subject = '18011045C'
 experiment = 'Movie'
 
 # %% Create Class object
 raw_prepro = MNEprepro(subject, experiment, paths_dic)
 
+# %% Detect and reject moving periods
+raw_prepro.detectMov()
+
 # %% Detect and reject bad channels
 raw_prepro.detectBadChannels(save_csv=True)
-
-# %% Detect and reject moving periods
-#raw_prepro.detectMov()
 
 # %% Create ICA components
 raw_prepro.run_ICA(overwrite=False)
