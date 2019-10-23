@@ -20,18 +20,10 @@ import socket
 import os.path as op
 import glob
 
-start = time.time()
-pause_for = 0.0005
-time.sleep(pause_for)
-time_past = time.time() - start
-print(f'took {time_past:.4f} instead of {pause_for:.4f}')
-
-if time_past > pause_for*3:
-    import appnope
-    appnope.nope()
 
 # %%
-    
+Host = (socket.gethostname())
+paths_dic = dict()
 if Host == 'owners-MacBook-Pro.local':
     paths_dic['root'] = "~/Desktop/projects/MNE/data"
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
@@ -43,15 +35,15 @@ elif Host == 'sc-155014':
 # %% FIST WITH RAW OBJ ONLY
 #######################################
 subject = '18011045C'
-raw_ds = op.join(op.expanduser(paths_dic['root']) , subject ,
+raw_ds = op.join(op.expanduser(paths_dic['root']), subject,
                  subject + '_Flanker_20190923_02.ds')
 
 raw = mne.io.read_raw_ctf(raw_ds)
 
 events = mne.find_events(raw, stim_channel='UPPT001')
 
-event_id = {'Incongruent/Left': 3, 'Incongruent/Right': 5,
-            'Congruent/Left': 4, 'Congruent/Right': 6,
+event_id = {'Fish/Incongruent/Left': 3, 'Fish/Incongruent/Right': 5,
+            'Fish/Congruent/Left': 4, 'Fish/Congruent/Right': 6,
             'Reward/Face': 7, 'Reward/Coin': 8,
             'Reward/Neut_FaceTRL': 9, 'Reward/Neut_CoinTRL': 10}
 
@@ -62,11 +54,11 @@ epochs = mne.Epochs(raw, events, event_id, tmin=-0.1, tmax=.5,
 
 # plot raw average
 topomap_args = dict(vmin=-300, vmax=300)
-evoked_con = epochs['Incongruent'].average()
+evoked_con = epochs['Fish'].average()
 evoked_con.plot_joint(title='No prepro', topomap_args=topomap_args)
 
 
-# HM compensation
+# %%HM compensation
 pos = mne.chpi._calculate_head_pos_ctf(raw)
 
 raw_sss = raw.copy().apply_gradient_compensation(0)
@@ -77,7 +69,7 @@ raw_sss = mne.preprocessing.maxwell_filter(raw_sss, destination=destination, hea
 
 epochs_HM = mne.Epochs(raw_sss, events, event_id, tmin=-0.1, tmax=.5,
                        baseline=(None, 0), picks=picks, preload=True)
-evoked_HM = epochs_HM['Incongruent'].average()
+evoked_HM = epochs_HM['Fish'].average()
 evoked_HM.plot_joint(title='Moving: movement compensated', topomap_args=topomap_args)
 
 ## %% Create variables for class object
