@@ -6,9 +6,7 @@ import glob
 import mne
 import numpy as np
 import csv
-import threading
-
-
+from annotate_artifacts import (annotate_motion_artifacts, plot_artifacts)
 
 class MNEprepro():
 
@@ -81,6 +79,20 @@ class MNEprepro():
         makedirs(self.out_annot, exist_ok=True)
         makedirs(self.out_ICAs, exist_ok=True)
 
+    def detectMov(self, threshold_mov=.005, do_plot=True):
+        pos = mne.chpi._calculate_head_pos_ctf(self.raw)
+        if do_plot is True:
+            mov_annot, araw = annotate_motion_artifacts(self.raw, pos,
+                              disp_thr=threshold_mov, velo_thr=None,
+                              gof_thr=None, return_stat_raw=True)
+            tresholds = {'motion_disp_thresh': threshold_mov}
+            plot_artifacts(araw, tresholds)
+        else:
+            araw = annotate_motion_artifacts(self.raw, pos, disp_thr=
+                                             threshold_mov, velo_thr=None,
+                                             gof_thr=None)
+        self.raw.set_annotations(mov_annot)
+
     def detectBadChannels(self, zscore_v=3, save_csv=None, overwrite=False):
         """ zscore_v = zscore threshold, save_csv: path_tosaveCSV
         """
@@ -116,10 +128,6 @@ class MNEprepro():
             for col in reader:
                 csv_dat.append(col)
         return csv_dat[-1]
-
-    def detectMov(self):
-        thr = .5  # mm
-        pos = mne.chpi._calculate_head_pos_ctf(self.raw)
 
     def run_ICA(self, overwrite=False):
         fname = self.subject + '_' + self.experiment + '-ica.fif.gz'
