@@ -39,8 +39,8 @@ Host = (socket.gethostname())
 if Host == 'owners-MacBook-Pro.local':
     paths_dic['root'] = "~/Desktop/projects/MNE/data"
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
-elif Host == 'sc-155014':
-    paths_dic['root'] = "~/Desktop/REPO/MEG_REPO/MEG_children"
+elif Host == 'sc-155028' or 'sc-155014':
+    paths_dic['root'] = "~/Desktop/REPO/MEG_repo/MEG_children"
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
 
 subject = '18011045C'
@@ -48,6 +48,7 @@ experiment = 'Movie'
 
 # %% Create Class object
 raw_prepro = MNEprepro(subject, experiment, paths_dic)
+events, event_id  = raw_prepro.get_events(plot=1)
 
 # %% Detect and reject moving periods
 raw_prepro.detectMov()
