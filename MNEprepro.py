@@ -217,11 +217,12 @@ class MNEprepro():
                         task)
         return event_id, events
 
-    def annotate_muscle_artifacts(self, art_thresh=0.075, t_min=2,
+
+        def detect_muscartif(self, art_thresh=2, t_min=2,
                                   desc='Bad-muscle', n_jobs=1,
-                                  return_stat_raw=False):
+                                  return_stat_raw=False, plot=True):
         """Find and annotation mucsle artifacts."""
-        raw = self.raw.copy()
+        raw = self.raw.copy().load_data()
         # pick meg_chans
         raw.info['comps'] = []
         raw.pick_types(meg=True, ref_meg=False)
@@ -230,20 +231,28 @@ class MNEprepro():
         sfreq = raw.info['sfreq']
         art_scores = stats.zscore(raw._data, axis=1)
         stat_raw = None
-        art_scores_filt = filter_data(art_scores.mean(axis=0), sfreq, None, 5)
+        art_scores_filt = mne.filter.filter_data(art_scores.mean(axis=0),
+                                                 sfreq, None, 5)
         art_mask = art_scores_filt > art_thresh
         if return_stat_raw:
-            tmp_info = create_info(['mucsl_score'], raw.info['sfreq'], ['misc'])
-            stat_raw = RawArray(art_scores_filt.reshape(1, -1), tmp_info)
-    
+            tmp_info = mne.create_info(['mucsl_score'], raw.info['sfreq'],
+                                       ['misc'])
+            stat_raw = mne.io.RawArray(art_scores_filt.reshape(1, -1),
+                                       tmp_info)
         # remove artifact free periods under limit
         idx_min = t_min * sfreq
         comps, num_comps = label(art_mask == 0)
         for l in range(1, num_comps+1):
             l_idx = np.nonzero(comps == l)[0]
             if len(l_idx) < idx_min:
-                art_mask[l_idx] = True
+                art_mask[l_idx] = True  
+        if plot:
+            raw = self.raw.copy().load_data()
+            raw.set_annotations(_annotations_from_mask(raw.times, art_mask,
+                                                       desc))
+            raw.plot()
         return _annotations_from_mask(raw.times, art_mask, desc), stat_raw
+
     
  ##################################################################
  ## Photod Diode functions
