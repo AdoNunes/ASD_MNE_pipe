@@ -7,7 +7,7 @@ import mne
 import numpy as np
 import csv
 from annotate_artifacts import (annotate_motion_artifacts, plot_artifacts)
-
+from mne.annotations import Annotations, read_annotations
 
 class MNEprepro():
 
@@ -79,19 +79,27 @@ class MNEprepro():
         makedirs(self.out_bd_ch, exist_ok=True)  # I want to loop it
         makedirs(self.out_annot, exist_ok=True)
         makedirs(self.out_ICAs, exist_ok=True)
+
 # TODO save annotations and just load them if exist
-    def detectMov(self, threshold_mov=.005, do_plot=True):
-        pos = mne.chpi._calculate_head_pos_ctf(self.raw)
-        if do_plot is True:
-            mov_annot, araw = annotate_motion_artifacts(self.raw, pos,
-                              disp_thr=threshold_mov, velo_thr=None,
-                              gof_thr=None, return_stat_raw=True)
-            tresholds = {'motion_disp_thresh': threshold_mov}
-            plot_artifacts(araw, tresholds)
+    def detectMov(self, threshold_mov=.005, do_plot=True, overwrite=False):
+        fname = self.subject + '_' + self.experiment + '_mov.csv'
+        out_csv_f = op.join(self.out_bd_ch, fname)
+        if op.exists(out_csv_f) and not overwrite:
+            mov_annot = read_annotations(out_csv_f)
+            print('Reading from file, mov segments are:', mov_annot)
         else:
-            araw = annotate_motion_artifacts(self.raw, pos,
-                                             disp_thr=threshold_mov,
-                                             velo_thr=None, gof_thr=None)
+            pos = mne.chpi._calculate_head_pos_ctf(self.raw)
+            if do_plot is True:
+                mov_annot, araw = annotate_motion_artifacts(self.raw, pos,
+                                  disp_thr=threshold_mov, velo_thr=None,
+                                  gof_thr=None, return_stat_raw=True)
+                tresholds = {'motion_disp_thresh': threshold_mov}
+                plot_artifacts(araw, tresholds)
+            else:
+                araw = annotate_motion_artifacts(self.raw, pos,
+                                                 disp_thr=threshold_mov,
+                                                 velo_thr=None, gof_thr=None)
+            mov_annot.save(out_csv_f)
         self.raw.set_annotations(mov_annot)
 
     def detectBadChannels(self, zscore_v=4, save_csv=None, overwrite=False):
