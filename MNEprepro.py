@@ -150,51 +150,81 @@ class MNEprepro():
             self.ica.save(out_fname)
 
     def get_events(self, plot=1):
-        #general description of the data
+        # general description of the data
         raw_copy = self.raw.copy()
         task = self.experiment
         fs = raw_copy.info['sfreq']
         time = raw_copy.buffer_size_sec
-        N_samples = raw_copy.n_times;
-        print ('Data is composed from')
-        print(str(N_samples) + ' samples with ' + str(fs) + ' Hz sampling rate')
-        print('Total time = ' + str(time) +'s')
-        #get photodiode events from CTF data
+        N_samples = raw_copy.n_times
+        print('Data is composed from')
+        print(str(N_samples) + ' samples with ' + str(fs) + ' Hz sampl rate')
+        print('Total time = ' + str(time) + 's')
+        # get photodiode events from CTF data
         PD_ts, Ind_PD_ON, Ind_PD_OFF, T_PD = get_photodiode_events(raw_copy)
-        #pick Trigger channel time series from CTF data
-        Trig = mne.io.pick.pick_channels_regexp(raw_copy.info['ch_names'],'UPPT001')
+        # pick Trigger channel time series from CTF data
+        Trig = mne.io.pick.pick_channels_regexp(raw_copy.info['ch_names'],
+                                                'UPPT001')
         Trig_ts = raw_copy.get_data(picks=Trig)
-        #get events from trigger channel
+        # get events from trigger channel
         events_trig = mne.find_events(raw_copy, stim_channel='UPPT001')
-        
+
         if task == 'Car':
-            event_id = {'Transp/H2L': 10, 'Transp/L2H': 20, 
-                            'NotTransp/H2L': 30, 'NotTransp/L2H': 40}
-            #get trigger names for PD ON states
+            event_id = {'Transp/H2L': 10, 'Transp/L2H': 20,
+                        'NotTransp/H2L': 30, 'NotTransp/L2H': 40}
+            # get trigger names for PD ON states
             events = get_triger_names_PD(event_id, Ind_PD_ON, events_trig)
-        
+
         elif task == 'Movie':
             if len(Ind_PD_ON) and len(Ind_PD_OFF) != 196:
                 print('NOT ALL OF THE PD STIM PRESENT!!!')
             event_id = []
-            events = np.zeros((len(Ind_PD_ON),3))
-            events[:,0] = Ind_PD_ON;
-            events[:,2] = 1;
-                
+            events = np.zeros((len(Ind_PD_ON), 3))
+            events[:, 0] = Ind_PD_ON
+            events[:, 2] = 1
+
         elif task == 'Flanker':
-            event_id = {'Incongruent/Left': 3, 'Incongruent/Right': 5, 
+            event_id = {'Incongruent/Left': 3, 'Incongruent/Right': 5,
                         'Congruent/Left': 4, 'Congruent/Right': 6,
-                        'Reward/Face': 7,'Reward/Coin': 8,
-                        'Reward/Neut_FaceTRL': 9,'Reward/Neut_CoinTRL': 10}
-                    #get trigger names for PD ON states
+                        'Reward/Face': 7, 'Reward/Coin': 8,
+                        'Reward/Neut_FaceTRL': 9, 'Reward/Neut_CoinTRL': 10}
+            # get trigger names for PD ON states
             events = get_triger_names_PD(event_id, Ind_PD_ON, events_trig)
-        
+
         events = events.astype(np.int64)
-        #plot trig and PD
+        # plot trig and PD
         if plot:
             plt.figure()
-            plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF,Trig_ts, events, task)    
+            plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events,
+                        task)
         return event_id, events
+
+    def annotate_muscle_artifacts(self, art_thresh=0.075, t_min=2,
+                                  desc='Bad-muscle', n_jobs=1,
+                                  return_stat_raw=False):
+        """Find and annotation mucsle artifacts."""
+        raw = self.raw.copy()
+        # pick meg_chans
+        raw.info['comps'] = []
+        raw.pick_types(meg=True, ref_meg=False)
+        raw.filter(110, 140, n_jobs=n_jobs, fir_design='firwin')
+        raw.apply_hilbert(n_jobs=n_jobs, envelope=True)
+        sfreq = raw.info['sfreq']
+        art_scores = stats.zscore(raw._data, axis=1)
+        stat_raw = None
+        art_scores_filt = filter_data(art_scores.mean(axis=0), sfreq, None, 5)
+        art_mask = art_scores_filt > art_thresh
+        if return_stat_raw:
+            tmp_info = create_info(['mucsl_score'], raw.info['sfreq'], ['misc'])
+            stat_raw = RawArray(art_scores_filt.reshape(1, -1), tmp_info)
+    
+        # remove artifact free periods under limit
+        idx_min = t_min * sfreq
+        comps, num_comps = label(art_mask == 0)
+        for l in range(1, num_comps+1):
+            l_idx = np.nonzero(comps == l)[0]
+            if len(l_idx) < idx_min:
+                art_mask[l_idx] = True
+        return _annotations_from_mask(raw.times, art_mask, desc), stat_raw
     
     
 def get_photodiode_events(raw):
