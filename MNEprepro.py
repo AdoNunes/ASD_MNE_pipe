@@ -18,6 +18,10 @@ class MNEprepro():
     Class to preproces CTF data
     Usage:
     raw_prepro = MNEprepro(subject, experiment, paths_dic)
+<<<<<<< HEAD
+=======
+
+>>>>>>> upstream/master
     paths_dic = {
         "root": "/Volumes/Data_projec/data/REPO/MEG_repo",
         "root": "~/Desktop/projects/MNE/data",
@@ -25,9 +29,19 @@ class MNEprepro():
         "subj_anat": 'anatomy'
         "out": "~/Desktop/projects/MNE/data_prep"
     }
+<<<<<<< HEAD
     subject = '18011014C'
     experiment = 'Movie'
     STEPS to do
+=======
+
+    subject = '18011014C'
+    experiment = 'Movie'
+
+
+    STEPS to do
+
+>>>>>>> upstream/master
     1- load the data
     2- Load previous prepro info -> bad channels, mov, etc if any
     3- plot and find bad channels
