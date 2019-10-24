@@ -240,6 +240,7 @@ class MNEprepro():
                                        ['misc'])
             stat_raw = mne.io.RawArray(art_scores_filt.reshape(1, -1),
                                        tmp_info)
+
         # remove artifact free periods under limit
         idx_min = t_min * sfreq
         comps, num_comps = label(art_mask == 0)
@@ -257,7 +258,6 @@ class MNEprepro():
 ##################################################################
 # Photod Diode functions
 ##################################################################
-
 
 def get_photodiode_events(raw):
 
