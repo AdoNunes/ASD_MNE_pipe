@@ -8,10 +8,12 @@ import numpy as np
 import csv
 from annotate_artifacts import (annotate_motion_artifacts, plot_artifacts)
 from mne.annotations import Annotations, read_annotations
+import matplotlib.pyplot as plt
+from scipy import stats
+from scipy.ndimage.measurements import label
 
 class MNEprepro():
 
-    
     """
 
     Class to preproces CTF data
@@ -19,7 +21,7 @@ class MNEprepro():
     Usage:
 
     raw_prepro = MNEprepro(subject, experiment, paths_dic)
-    
+
     paths_dic = {
         "root": "/Volumes/Data_projec/data/REPO/MEG_repo",
         "root": "~/Desktop/projects/MNE/data",
@@ -27,13 +29,13 @@ class MNEprepro():
         "subj_anat": 'anatomy'
         "out": "~/Desktop/projects/MNE/data_prep"
     }
-    
+
     subject = '18011014C'
     experiment = 'Movie'
-        
-    
+
+
     STEPS to do
-    
+
     1- load the data
     2- Load previous prepro info -> bad channels, mov, etc if any
     3- plot and find bad channels
@@ -217,11 +219,11 @@ class MNEprepro():
                         task)
         return event_id, events
 
-    def annotate_muscle_artifacts(self, art_thresh=0.075, t_min=2,
+    def detect_muscartif(self, art_thresh=2, t_min=2,
                                   desc='Bad-muscle', n_jobs=1,
-                                  return_stat_raw=False):
+                                  return_stat_raw=False, plot=True):
         """Find and annotation mucsle artifacts."""
-        raw = self.raw.copy()
+        raw = self.raw.copy().load_data()
         # pick meg_chans
         raw.info['comps'] = []
         raw.pick_types(meg=True, ref_meg=False)
@@ -230,79 +232,107 @@ class MNEprepro():
         sfreq = raw.info['sfreq']
         art_scores = stats.zscore(raw._data, axis=1)
         stat_raw = None
-        art_scores_filt = filter_data(art_scores.mean(axis=0), sfreq, None, 5)
+        art_scores_filt = mne.filter.filter_data(art_scores.mean(axis=0),
+                                                 sfreq, None, 5)
         art_mask = art_scores_filt > art_thresh
         if return_stat_raw:
-            tmp_info = create_info(['mucsl_score'], raw.info['sfreq'], ['misc'])
-            stat_raw = RawArray(art_scores_filt.reshape(1, -1), tmp_info)
-    
+            tmp_info = mne.create_info(['mucsl_score'], raw.info['sfreq'],
+                                       ['misc'])
+            stat_raw = mne.io.RawArray(art_scores_filt.reshape(1, -1),
+                                       tmp_info)
         # remove artifact free periods under limit
         idx_min = t_min * sfreq
         comps, num_comps = label(art_mask == 0)
         for l in range(1, num_comps+1):
             l_idx = np.nonzero(comps == l)[0]
             if len(l_idx) < idx_min:
-                art_mask[l_idx] = True
+                art_mask[l_idx] = True  
+        if plot:
+            raw = self.raw.copy().load_data()
+            raw.set_annotations(_annotations_from_mask(raw.times, art_mask,
+                                                       desc))
+            raw.plot()
         return _annotations_from_mask(raw.times, art_mask, desc), stat_raw
-    
- ##################################################################
- ## Photod Diode functions
- ##################################################################   
+
+##################################################################
+# Photod Diode functions
+##################################################################
+
+
 def get_photodiode_events(raw):
-    
+
     raw = raw.copy()
-    
     # pick PD channel time series from CTF data
     raw.info['comps'] = []
-    PD = mne.io.pick.pick_channels_regexp(raw.info['ch_names'],'UADC015-3007')
-    PD_ts = raw.get_data(picks = PD)
-    
-    #find all 'ON' states of PD
-    n, bins, patches = plt.hist(PD_ts[0,:], bins=50, 
-                                    range=(np.percentile(PD_ts[0,:], 1),
-                                    np.percentile(PD_ts[0,:], 99)),
-                                    color='#0504aa', alpha=0.7, rwidth=0.85)
-    thr = bins[np.nonzero(n == np.min(n))]# set a treshold
+    PD = mne.io.pick.pick_channels_regexp(raw.info['ch_names'], 'UADC015-3007')
+    PD_ts = raw.get_data(picks=PD)
+
+    # find all 'ON' states of PD
+    n, bins, patches = plt.hist(PD_ts[0, :], bins=50,
+                                range=(np.percentile(PD_ts[0, :], 1),
+                                np.percentile(PD_ts[0, :], 99)),
+                                color='#0504aa', alpha=0.7, rwidth=0.85)
+    thr = bins[np.nonzero(n == np.min(n))]  # set a treshold
     if len(thr) > 1:
         thr = thr[-1]
     T_PD = PD_ts > thr
     Ind_PD_ON = []
     Ind_PD_OFF = []
-    for ind, n in enumerate(T_PD[0,:]):
-        if n == True and T_PD[0,ind-1] == False and np.all(T_PD[0,ind-10:ind-1] == False):
+    for ind, n in enumerate(T_PD[0, :]):
+        if (n == True and T_PD[0, ind-1] == False and np.all(T_PD[0, ind-10:ind-1] == False)):
             Ind_PD_ON.append(ind)
-        elif  n == False and T_PD[0,ind-1] == True and np.all(T_PD[0,ind-10:ind-1] == True):
+        elif (n == False and T_PD[0, ind-1] == True and np.all(T_PD[0, ind-10:ind-1] == True)):
             Ind_PD_OFF.append(ind)
     return PD_ts, Ind_PD_ON, Ind_PD_OFF, T_PD
 
-def plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF,Trig_ts, events, task):
-        
-    plt.plot((PD_ts[0,:]))
-    plt.plot(T_PD[0,:]*5)
-    y = np.ones((1,len(Ind_PD_ON)))
-    y = y = 0.5*y        
-    plt.plot(np.array(Ind_PD_ON), y[0,:], 'o', color='black');
-    y = np.ones((1,len(Ind_PD_OFF)))
+
+def plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events, task):
+
+    plt.plot((PD_ts[0, :]))
+    plt.plot(T_PD[0, :]*5)
+    y = np.ones((1, len(Ind_PD_ON)))
     y = y = 0.5*y
-    plt.plot(np.array(Ind_PD_OFF), y[0,:], 'o', color='red');
-    plt.plot(events[:,0], events[:,2], 'o', color='green');
-    plt.plot((Trig_ts[0,:]))
+    plt.plot(np.array(Ind_PD_ON), y[0, :], 'o', color='black')
+    y = np.ones((1, len(Ind_PD_OFF)))
+    y = y = 0.5*y
+    plt.plot(np.array(Ind_PD_OFF), y[0, :], 'o', color='red')
+    plt.plot(events[:, 0], events[:, 2], 'o', color='green')
+    plt.plot((Trig_ts[0, :]))
     plt.ylabel('a.u.')
     plt.xlabel('samples')
     plt.title('Photodiode and triggers timing for ' + task + ' task')
-       
-    
+
+
 def get_triger_names_PD(event_id, Ind_PD_ON, events_trig):
-    #create events
-    events = np.zeros((len(Ind_PD_ON),3))
-    events[:,0] = Ind_PD_ON;
-            
-            #get trigger names for PD ON states
+    # create events
+    events = np.zeros((len(Ind_PD_ON), 3))
+    events[:, 0] = Ind_PD_ON
+    # get trigger names for PD ON states
     for key, value in event_id.items():
-        ind = events_trig[:,2] == value
-        time = events_trig[ind,0]
+        ind = events_trig[:, 2] == value
+        time = events_trig[ind, 0]
         for n in time:
             inx = (Ind_PD_ON-n)
-            m = min(inx[inx>0])
-            events[inx == m,2] = value;
+            m = min(inx[inx > 0])
+            events[inx == m, 2] = value
     return events
+
+
+def _annotations_from_mask(times, art_mask, art_name):
+    # make annototations
+    comps, num_comps = label(art_mask)
+    onsets = []
+    durations = []
+    desc = []
+    n_times = len(times)
+    for l in range(1, num_comps+1):
+        l_idx = np.nonzero(comps == l)[0]
+        onsets.append(times[l_idx[0]])
+        # duration is to the time after the last labeled time
+        # or to the end of the times.
+        if 1+l_idx[-1] < n_times:
+            durations.append(times[1+l_idx[-1]] - times[l_idx[0]])
+        else:
+            durations.append(times[l_idx[-1]] - times[l_idx[0]])
+        desc.append(art_name)
+    return Annotations(onsets, durations, desc)

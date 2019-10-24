@@ -44,14 +44,18 @@ elif Host == 'sc-155028' or 'sc-155014':
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
 
 subject = '18011045C'
-experiment = 'Movie'
+experiment = 'Flanker'
 
 # %% Create Class object
 raw_prepro = MNEprepro(subject, experiment, paths_dic)
+# %% Events
 events, event_id  = raw_prepro.get_events(plot=1)
 
 # %% Detect and reject moving periods
 raw_prepro.detectMov()
+# %% Muscle artifacts
+raw_prepro.detect_muscartif(plot=True)
+
 
 # %% Detect and reject bad channels
 raw_prepro.detectBadChannels(save_csv=True)
