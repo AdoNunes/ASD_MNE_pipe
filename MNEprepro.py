@@ -6,10 +6,8 @@ import glob
 import mne
 import numpy as np
 import csv
-import threading
-import matplotlib.pyplot as plt
-
-
+from annotate_artifacts import (annotate_motion_artifacts, plot_artifacts)
+from mne.annotations import Annotations, read_annotations
 
 class MNEprepro():
 
@@ -82,7 +80,29 @@ class MNEprepro():
         makedirs(self.out_annot, exist_ok=True)
         makedirs(self.out_ICAs, exist_ok=True)
 
-    def detectBadChannels(self, zscore_v=3, save_csv=None, overwrite=False):
+# TODO save annotations and just load them if exist
+    def detectMov(self, threshold_mov=.005, do_plot=True, overwrite=False):
+        fname = self.subject + '_' + self.experiment + '_mov.csv'
+        out_csv_f = op.join(self.out_bd_ch, fname)
+        if op.exists(out_csv_f) and not overwrite:
+            mov_annot = read_annotations(out_csv_f)
+            print('Reading from file, mov segments are:', mov_annot)
+        else:
+            pos = mne.chpi._calculate_head_pos_ctf(self.raw)
+            if do_plot is True:
+                mov_annot, araw = annotate_motion_artifacts(self.raw, pos,
+                                  disp_thr=threshold_mov, velo_thr=None,
+                                  gof_thr=None, return_stat_raw=True)
+                tresholds = {'motion_disp_thresh': threshold_mov}
+                plot_artifacts(araw, tresholds)
+            else:
+                araw = annotate_motion_artifacts(self.raw, pos,
+                                                 disp_thr=threshold_mov,
+                                                 velo_thr=None, gof_thr=None)
+            mov_annot.save(out_csv_f)
+        self.raw.set_annotations(mov_annot)
+
+    def detectBadChannels(self, zscore_v=4, save_csv=None, overwrite=False):
         """ zscore_v = zscore threshold, save_csv: path_tosaveCSV
         """
         fname = self.subject + '_' + self.experiment + '_bads.csv'
@@ -95,11 +115,14 @@ class MNEprepro():
             from itertools import compress
             raw_copy = self.raw.copy().crop(30., 220.).load_data()
             raw_copy = raw_copy.pick_types(meg=True, ref_meg=False)\
-                .filter(1, 50).resample(150, npad='auto')
+                .filter(1, 45).resample(150, npad='auto')
             max_Pow = np.sqrt(np.sum(raw_copy.get_data() ** 2, axis=1))
             max_Z = zscore(max_Pow)
             max_th = max_Z > zscore_v
             bad_chns = list(compress(raw_copy.info['ch_names'], max_th))
+            if bad_chns:
+                raw_copy.plot(n_channels=100, block=True)
+                bad_chns = raw_copy.info['bads']
             if save_csv is not None:
                 self.csv_save(bad_chns, out_csv_f)
             self.raw.info['bads'] = bad_chns
@@ -117,10 +140,6 @@ class MNEprepro():
             for col in reader:
                 csv_dat.append(col)
         return csv_dat[-1]
-
-    def detectMov(self):
-        thr = .5  # mm
-        pos = mne.chpi._calculate_head_pos_ctf(self.raw)
 
     def run_ICA(self, overwrite=False):
         fname = self.subject + '_' + self.experiment + '-ica.fif.gz'
@@ -226,7 +245,9 @@ class MNEprepro():
                 art_mask[l_idx] = True
         return _annotations_from_mask(raw.times, art_mask, desc), stat_raw
     
-    
+ ##################################################################
+ ## Photod Diode functions
+ ##################################################################   
 def get_photodiode_events(raw):
     
     raw = raw.copy()
