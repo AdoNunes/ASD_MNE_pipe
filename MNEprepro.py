@@ -79,7 +79,7 @@ class MNEprepro():
         makedirs(self.out_bd_ch, exist_ok=True)  # I want to loop it
         makedirs(self.out_annot, exist_ok=True)
         makedirs(self.out_ICAs, exist_ok=True)
-
+# TODO save annotations and just load them if exist
     def detectMov(self, threshold_mov=.005, do_plot=True):
         pos = mne.chpi._calculate_head_pos_ctf(self.raw)
         if do_plot is True:
@@ -89,12 +89,12 @@ class MNEprepro():
             tresholds = {'motion_disp_thresh': threshold_mov}
             plot_artifacts(araw, tresholds)
         else:
-            araw = annotate_motion_artifacts(self.raw, pos, disp_thr=
-                                             threshold_mov, velo_thr=None,
-                                             gof_thr=None)
+            araw = annotate_motion_artifacts(self.raw, pos,
+                                             disp_thr=threshold_mov,
+                                             velo_thr=None, gof_thr=None)
         self.raw.set_annotations(mov_annot)
 
-    def detectBadChannels(self, zscore_v=3, save_csv=None, overwrite=False):
+    def detectBadChannels(self, zscore_v=4, save_csv=None, overwrite=False):
         """ zscore_v = zscore threshold, save_csv: path_tosaveCSV
         """
         fname = self.subject + '_' + self.experiment + '_bads.csv'
@@ -107,11 +107,14 @@ class MNEprepro():
             from itertools import compress
             raw_copy = self.raw.copy().crop(30., 220.).load_data()
             raw_copy = raw_copy.pick_types(meg=True, ref_meg=False)\
-                .filter(1, 50).resample(150, npad='auto')
+                .filter(1, 45).resample(150, npad='auto')
             max_Pow = np.sqrt(np.sum(raw_copy.get_data() ** 2, axis=1))
             max_Z = zscore(max_Pow)
             max_th = max_Z > zscore_v
             bad_chns = list(compress(raw_copy.info['ch_names'], max_th))
+            if bad_chns:
+                raw_copy.plot(n_channels=100, block=True)
+                bad_chns = raw_copy.info['bads']
             if save_csv is not None:
                 self.csv_save(bad_chns, out_csv_f)
             self.raw.info['bads'] = bad_chns
@@ -204,7 +207,9 @@ class MNEprepro():
             plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF,Trig_ts, events, task)    
         return event_id, events
     
-    
+ ##################################################################
+ ## Photod Diode functions
+ ##################################################################   
 def get_photodiode_events(raw):
     
     raw = raw.copy()
