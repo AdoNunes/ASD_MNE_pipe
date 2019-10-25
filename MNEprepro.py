@@ -82,7 +82,7 @@ class MNEprepro():
                                  experiment + '*')[-1]
         self.raw = mne.io.read_raw_ctf(self.pth_raw, preload=False)
         if self.raw.compensation_grade != 3:
-            self.raw.apply_gradient_compensation(0)
+            self.raw.apply_gradient_compensation(3)
 
     def check_outdir(self):
         from os import makedirs
@@ -127,6 +127,7 @@ class MNEprepro():
             self.raw.info['bads'] = bad_chns
         else:
             from itertools import compress
+            print('Looking for bad channels')
             raw_copy = self.raw.copy().crop(30., 220.).load_data()
             raw_copy = raw_copy.pick_types(meg=True, ref_meg=False)\
                 .filter(1, 45).resample(150, npad='auto')
@@ -134,9 +135,14 @@ class MNEprepro():
             max_Z = zscore(max_Pow)
             max_th = max_Z > zscore_v
             bad_chns = list(compress(raw_copy.info['ch_names'], max_th))
+            raw_copy.info['bads'] = bad_chns
             if bad_chns:
-                raw_copy.plot(n_channels=100, block=True)
+                print('Plotting data,bad chans are:', bad_chns)
+                raw_copy.plot(n_channels=100, block=True, bad_color='r')
                 bad_chns = raw_copy.info['bads']
+                print('Bad chans are:', bad_chns)
+            else:
+                print('No bad chans found')
             if save_csv is True:
                 self.csv_save(bad_chns, out_csv_f)
             self.raw.info['bads'] = bad_chns
