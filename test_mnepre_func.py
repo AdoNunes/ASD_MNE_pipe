@@ -15,16 +15,6 @@ from MNEprepro import MNEprepro
 import time
 import socket
 
-start = time.time()
-pause_for = 0.0005
-time.sleep(pause_for)
-time_past = time.time() - start
-print(f'took {time_past:.4f} instead of {pause_for:.4f}')
-
-if time_past > pause_for*3:
-    import appnope
-    appnope.nope()
-
 
 # %% Create variables for class object
 paths_dic = {  # "root": "/Volumes/Data_projec/data/REPO/MEG_repo",
@@ -48,17 +38,17 @@ experiment = 'Flanker'
 
 # %% Create Class object
 raw_prepro = MNEprepro(subject, experiment, paths_dic)
-# %% Events
-events, event_id  = raw_prepro.get_events(plot=1)
+
+# %% Detect and reject bad channels
+raw_prepro.detectBadChannels(save_csv=True, overwrite=True)
 
 # %% Detect and reject moving periods
 raw_prepro.detectMov()
+
 # %% Muscle artifacts
 raw_prepro.detect_muscartif(plot=True)
 
 
-# %% Detect and reject bad channels
-raw_prepro.detectBadChannels(save_csv=True)
 
 # %% Create ICA components
 raw_prepro.run_ICA(overwrite=False)
@@ -67,6 +57,9 @@ print("didnt stoppppp")
 # %% Save ICA components
 raw_prepro.save_ICA(overwrite=False)
 
+
+# %% Events
+events, event_id  = raw_prepro.get_events(plot=1)
 
 
 """

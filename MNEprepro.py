@@ -18,30 +18,33 @@ class MNEprepro():
     Class to preproces CTF data
     Usage:
     raw_prepro = MNEprepro(subject, experiment, paths_dic)
-<<<<<<< HEAD
-=======
 
->>>>>>> upstream/master
     paths_dic = {
-        "root": "/Volumes/Data_projec/data/REPO/MEG_repo",
         "root": "~/Desktop/projects/MNE/data",
-        "meg": "MEG",
         "subj_anat": 'anatomy'
         "out": "~/Desktop/projects/MNE/data_prep"
     }
-<<<<<<< HEAD
-    subject = '18011014C'
-    experiment = 'Movie'
-    STEPS to do
-=======
 
     subject = '18011014C'
     experiment = 'Movie'
 
+    root = folder where subjects name folders are
+    subj_anat = name anatomy folder in subject folder
+    out = path to output files
+    
+    FOLDER EXAMPLE:
+    /path2/MEG_data:
+                    /subject_name
+                                 /experiment1.ds
+                                 /experiment2.ds
+                                 /anatomy
+                                         /t1.nii.gz
+                                         /cortical_surf_4k.gii
+                                /polhemus.pos
+
 
     STEPS to do
 
->>>>>>> upstream/master
     1- load the data
     2- Load previous prepro info -> bad channels, mov, etc if any
     3- plot and find bad channels
@@ -55,7 +58,10 @@ class MNEprepro():
         Pow
         ERF
         Conn
-    9- source
+    9- source level: ...
+
+
+
     out directory:
         /bad_chn_annot
         /ICA
@@ -72,7 +78,7 @@ class MNEprepro():
                                  experiment + '*')[-1]
         self.raw = mne.io.read_raw_ctf(self.pth_raw, preload=False)
         if self.raw.compensation_grade != 3:
-            self.raw.apply_gradient_compensation(0)
+            self.raw.apply_gradient_compensation(3)
 
     def check_outdir(self):
         from os import makedirs
@@ -106,7 +112,7 @@ class MNEprepro():
             mov_annot.save(out_csv_f)
         self.raw.set_annotations(mov_annot)
 
-    def detectBadChannels(self, zscore_v=4, save_csv=None, overwrite=False):
+    def detectBadChannels(self, zscore_v=4, save_csv=True, overwrite=False):
         """ zscore_v = zscore threshold, save_csv: path_tosaveCSV
         """
         fname = self.subject + '_' + self.experiment + '_bads.csv'
@@ -117,6 +123,7 @@ class MNEprepro():
             self.raw.info['bads'] = bad_chns
         else:
             from itertools import compress
+            print('Looking for bad channels')
             raw_copy = self.raw.copy().crop(30., 220.).load_data()
             raw_copy = raw_copy.pick_types(meg=True, ref_meg=False)\
                 .filter(1, 45).resample(150, npad='auto')
@@ -124,10 +131,15 @@ class MNEprepro():
             max_Z = zscore(max_Pow)
             max_th = max_Z > zscore_v
             bad_chns = list(compress(raw_copy.info['ch_names'], max_th))
+            raw_copy.info['bads'] = bad_chns
             if bad_chns:
-                raw_copy.plot(n_channels=100, block=True)
+                print('Plotting data,bad chans are:', bad_chns)
+                raw_copy.plot(n_channels=100, block=True, bad_color='r')
                 bad_chns = raw_copy.info['bads']
-            if save_csv is not None:
+                print('Bad chans are:', bad_chns)
+            else:
+                print('No bad chans found')
+            if save_csv is True:
                 self.csv_save(bad_chns, out_csv_f)
             self.raw.info['bads'] = bad_chns
             self.ch_max_Z = max_Z
