@@ -21,17 +21,28 @@ class MNEprepro():
     raw_prepro = MNEprepro(subject, experiment, paths_dic)
     
     paths_dic = {
-        "root": "/Volumes/Data_projec/data/REPO/MEG_repo",
         "root": "~/Desktop/projects/MNE/data",
-        "meg": "MEG",
         "subj_anat": 'anatomy'
         "out": "~/Desktop/projects/MNE/data_prep"
     }
-    
+    root = folder where subjects name folders are
+    subj_anat = name anatomy folder in subject folder
+    out = path to output files
+
     subject = '18011014C'
     experiment = 'Movie'
-        
-    
+
+    FOLDER EXAMPLE:
+    /path2/MEG_data:
+                    /subject_name
+                                 /experiment1.ds
+                                 /experiment2.ds
+                                 /anatomy
+                                         /t1.nii.gz
+                                         /cortical_surf_4k.gii
+                                /polhemus.pos
+
+
     STEPS to do
     
     1- load the data
