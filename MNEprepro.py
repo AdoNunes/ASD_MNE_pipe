@@ -61,7 +61,7 @@ class MNEprepro():
         Pow
         ERF
         Conn
-    9- source
+    9- source level: ...
 
 
 
@@ -116,7 +116,7 @@ class MNEprepro():
             mov_annot.save(out_csv_f)
         self.raw.set_annotations(mov_annot)
 
-    def detectBadChannels(self, zscore_v=4, save_csv=None, overwrite=False):
+    def detectBadChannels(self, zscore_v=4, save_csv=True, overwrite=False):
         """ zscore_v = zscore threshold, save_csv: path_tosaveCSV
         """
         fname = self.subject + '_' + self.experiment + '_bads.csv'
@@ -137,7 +137,7 @@ class MNEprepro():
             if bad_chns:
                 raw_copy.plot(n_channels=100, block=True)
                 bad_chns = raw_copy.info['bads']
-            if save_csv is not None:
+            if save_csv is True:
                 self.csv_save(bad_chns, out_csv_f)
             self.raw.info['bads'] = bad_chns
             self.ch_max_Z = max_Z
