@@ -17,11 +17,8 @@ import sys
 class MNEprepro():
 
     """
-
     Class to preproces CTF data
-
     Usage:
-
     raw_prepro = MNEprepro(subject, experiment, paths_dic)
 
     paths_dic = {
@@ -70,7 +67,6 @@ class MNEprepro():
     out directory:
         /bad_chn_annot
         /ICA
-
     """
 
     def __init__(self, subject, experiment, paths_dic):
@@ -219,7 +215,7 @@ class MNEprepro():
         elif task == 'Movie':
             if len(Ind_PD_ON) and len(Ind_PD_OFF) != 196:
                 print('NOT ALL OF THE PD STIM PRESENT!!!')
-            event_id = []
+            event_id = {'SceneOnset': 1}
             events = np.zeros((len(Ind_PD_ON), 3))
             events[:, 0] = Ind_PD_ON
             events[:, 2] = 1
@@ -239,6 +235,14 @@ class MNEprepro():
             plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events,
                         task)
         return event_id, events
+    
+    def epoching(self, event_id, events, tmin = -0.4, tmax = 0.5):
+        raw_copy = self.raw.copy().load_data().filter(1, 45) \
+                    .pick_types(meg=True, ref_meg=False)         
+        epochs = mne.Epochs(raw_copy, events=events, event_id=event_id,
+                            tmin=tmin, tmax=tmax, baseline=(tmin, 0.0),
+                            picks=('meg'))
+        return epochs
 
     def detect_muscartif(self, art_thresh=2, t_min=2,
                                   desc='Bad-muscle', n_jobs=1,
