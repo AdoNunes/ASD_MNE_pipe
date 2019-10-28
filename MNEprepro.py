@@ -124,28 +124,30 @@ class MNEprepro():
             self.raw.info['bads'] = bad_chns
             self.ch_max_Z = max_Z
 
-# TODO save annotations and just load them if exist
-    def detectMov(self, threshold_mov=.005, do_plot=True, overwrite=False,
-                  my_own_pos=False):
+    def detectMov(self, thr_mov=.005, do_plot=True, overwrite=False):
+        from mne.transforms import read_trans
         fname = self.subject + '_' + self.experiment + '_mov.csv'
-        out_csv_f = op.join(self.out_bd_ch, fname)
+        out_csv_f = op.join(self.out_annot, fname)
+        fname_t = self.subject + '_' + self.experiment + '_dev2head-trans.fif'
+        out_csv_f_t = op.join(self.out_annot, fname_t)
         if op.exists(out_csv_f) and not overwrite:
             mov_annot = read_annotations(out_csv_f)
             print('Reading from file, mov segments are:', mov_annot)
+            print('Reading from file, dev to head transformation')
+            dev_head_t = read_trans(out_csv_f_t)
         else:
             pos = mne.chpi._calculate_head_pos_ctf(self.raw)
+            mov_annot, hpi_disp, dev_head_t = annotate_motion(self.raw, pos,
+                                                              thr=thr_mov)
             if do_plot is True:
-                mov_annot, araw = annotate_motion_artifacts(self.raw, pos,
-                                  disp_thr=threshold_mov, velo_thr=None,
-                                  gof_thr=None, return_stat_raw=True)
-                tresholds = {'motion_disp_thresh': threshold_mov*10}
-                plot_artifacts(araw, tresholds)
-            else:
-                araw = annotate_motion_artifacts(self.raw, pos,
-                                                 disp_thr=threshold_mov,
-                                                 velo_thr=None, gof_thr=None)
+                plt.figure()
+                plt.plot(hpi_disp)
+                plt.show()
             mov_annot.save(out_csv_f)
+            dev_head_t.save(out_csv_f_t)
         self.raw.set_annotations(mov_annot)
+        self.raw.info['dev_head_t_old'] = self.raw.info['dev_head_t']
+        self.raw.info['dev_head_t'] = dev_head_t
 
     def csv_save(self, data, out_fname):
         with open(out_fname, "w") as f:
@@ -235,18 +237,18 @@ class MNEprepro():
             plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events,
                         task)
         return event_id, events
-    
-    def epoching(self, event_id, events, tmin = -0.4, tmax = 0.5):
+
+    def epoching(self, event_id, events, tmin=-0.4, tmax=0.5):
         raw_copy = self.raw.copy().load_data().filter(1, 45) \
-                    .pick_types(meg=True, ref_meg=False)         
+                    .pick_types(meg=True, ref_meg=False)
         epochs = mne.Epochs(raw_copy, events=events, event_id=event_id,
                             tmin=tmin, tmax=tmax, baseline=(tmin, 0.0),
                             picks=('meg'))
         return epochs
 
     def detect_muscartif(self, art_thresh=2, t_min=2,
-                                  desc='Bad-muscle', n_jobs=1,
-                                  return_stat_raw=False, plot=True):
+                         desc='Bad-muscle', n_jobs=1, return_stat_raw=False,
+                         plot=True):
         """Find and annotation mucsle artifacts."""
         raw = self.raw.copy().load_data()
         # pick meg_chans
@@ -266,19 +268,20 @@ class MNEprepro():
             stat_raw = mne.io.RawArray(art_scores_filt.reshape(1, -1),
                                        tmp_info)
 
-        # remove artifact free periods under limit
+        # remove artifact free periods under threshold
         idx_min = t_min * sfreq
         comps, num_comps = label(art_mask == 0)
         for l in range(1, num_comps+1):
             l_idx = np.nonzero(comps == l)[0]
             if len(l_idx) < idx_min:
-                art_mask[l_idx] = True  
+                art_mask[l_idx] = True
         if plot:
             raw = self.raw.copy().load_data()
             raw.set_annotations(_annotations_from_mask(raw.times, art_mask,
                                                        desc))
             raw.plot()
         return _annotations_from_mask(raw.times, art_mask, desc), stat_raw
+
 
 ##################################################################
 # Photod Diode functions
@@ -343,6 +346,18 @@ def get_triger_names_PD(event_id, Ind_PD_ON, events_trig):
     return events
 
 
+#########################################################
+########## Motion artifacts and head pos correction
+#########################################################
+
+from mne.io import RawArray
+from mne.io.ctf.trans import _quaternion_align
+
+from mne.annotations import Annotations
+from mne.chpi import _apply_quat
+from mne.transforms import apply_trans
+
+
 def _annotations_from_mask(times, art_mask, art_name):
     # make annototations
     comps, num_comps = label(art_mask)
@@ -363,11 +378,81 @@ def _annotations_from_mask(times, art_mask, art_name):
     return Annotations(onsets, durations, desc)
 
 
-#########################################################
-########## MOtion artifacts and head pos correction
-#########################################################
-    
-def annotate_motion(raw, pos, disp_thr=0.01,gof_thr=0.99,
+def annotate_motion(raw, pos, thr=0.01):
+    """Find and annotate periods of high HPI velocity and high HPI distance.
+        written originally by Luke Bloy"""
+    annot = Annotations([], [], [])
+
+    info = raw.info
+    time = pos[:, 0]
+    quats = pos[:, 1:7]
+
+    # Get static head pos from file
+    chpi_locs_dev = sorted([d for d in info['hpi_results'][-1]
+                            ['dig_points']], key=lambda x: x['ident'])
+    chpi_locs_dev = np.array([d['r'] for d in chpi_locs_dev])
+    # chpi_locs_dev[0]-> LPA, chpi_locs_dev[1]-> NASION, chpi_locs_dev[2]-> RPA
+    chpi_static_head = apply_trans(info['dev_head_t'], chpi_locs_dev)
+    # Get head pos changes during recording
+    chpi_mov_head = np.array([_apply_quat(quat, chpi_locs_dev, move=True)
+                              for quat in quats])
+    # Remove static head to get rel. movement
+    hpi_disp = chpi_mov_head - np.tile(chpi_static_head, (len(time), 1, 1))
+    # get positions where movement below threshold
+    mov_exes = np.any(np.any(np.absolute(hpi_disp) > thr, axis=2), axis=1)
+
+    # Get median head pos during recording excluding excessive mov periods
+    weights = np.append(time[1:] - time[:-1], 0)
+    weights[mov_exes] = 0
+    weights /= sum(weights)
+    tmp_med_head = weighted_median(chpi_mov_head, weights)
+    # Get closest pos to median
+    hpi_disp_th = chpi_mov_head - np.tile(tmp_med_head, (len(time), 1, 1))
+    hpi_dist_th = np.sqrt((hpi_disp_th.reshape(-1, 9) ** 2).sum(axis=1))
+    chpi_median_pos = chpi_mov_head[hpi_dist_th.argmin(), :, :]
+
+    # Compute displacements
+    hpi_disp = chpi_mov_head - np.tile(chpi_median_pos, (len(time), 1, 1))
+    hpi_disp = np.sqrt((hpi_disp**2).sum(axis=-1))
+
+    art_mask_mov = hpi_disp > thr
+    annot += _annotations_from_mask(time, art_mask_mov,
+                                    'Bad-motion-dist>%0.3f' % thr)
+    # Compute new dev->head transformation
+    init_dev_head_t = _quaternion_align(info['dev_head_t']['from'],
+                                        info['dev_head_t']['to'],
+                                        chpi_locs_dev, chpi_median_pos)
+    dev_head_t = init_dev_head_t
+    return annot, hpi_disp, dev_head_t
+
+
+def weighted_median(data, weights):
+    """ by tinybike
+    Args:
+      data (list or numpy.array): data
+      weights (list or numpy.array): weights
+    """
+    dims = data.shape
+    w_median = np.zeros((dims[1], dims[2]))
+    for d1 in range(dims[1]):
+        for d2 in range(dims[2]):
+            data_dd = np.array(data[:, d1, d2]).squeeze()
+            s_data, s_weights = map(np.array, zip(*sorted(zip(
+                                                        data_dd, weights))))
+            midpoint = 0.5 * sum(s_weights)
+            if any(s_weights > midpoint):
+                w_median[d1, d2] = (data[weights == np.max(weights)])[0]
+            else:
+                cs_weights = np.cumsum(s_weights)
+                idx = np.where(cs_weights <= midpoint)[0][-1]
+                if cs_weights[idx] == midpoint:
+                    w_median[d1, d2] = np.mean(s_data[idx:idx+2])
+                else:
+                    w_median[d1, d2] = s_data[idx+1]
+    return w_median
+
+
+def annotate_motion_old(raw, pos, disp_thr=0.01,gof_thr=0.99,
                     return_stat_raw=False):
     """Find and annotate periods of high HPI velocity and high HPI distance.
         written by Luke Bloy"""
