@@ -11,6 +11,8 @@ from mne.annotations import Annotations, read_annotations
 import matplotlib.pyplot as plt
 from scipy import stats
 from scipy.ndimage.measurements import label
+import sys
+
 
 class MNEprepro():
 
@@ -94,28 +96,6 @@ class MNEprepro():
         makedirs(self.out_annot, exist_ok=True)
         makedirs(self.out_ICAs, exist_ok=True)
 
-# TODO save annotations and just load them if exist
-    def detectMov(self, threshold_mov=.005, do_plot=True, overwrite=False):
-        fname = self.subject + '_' + self.experiment + '_mov.csv'
-        out_csv_f = op.join(self.out_bd_ch, fname)
-        if op.exists(out_csv_f) and not overwrite:
-            mov_annot = read_annotations(out_csv_f)
-            print('Reading from file, mov segments are:', mov_annot)
-        else:
-            pos = mne.chpi._calculate_head_pos_ctf(self.raw)
-            if do_plot is True:
-                mov_annot, araw = annotate_motion_artifacts(self.raw, pos,
-                                  disp_thr=threshold_mov, velo_thr=None,
-                                  gof_thr=None, return_stat_raw=True)
-                tresholds = {'motion_disp_thresh': threshold_mov}
-                plot_artifacts(araw, tresholds)
-            else:
-                araw = annotate_motion_artifacts(self.raw, pos,
-                                                 disp_thr=threshold_mov,
-                                                 velo_thr=None, gof_thr=None)
-            mov_annot.save(out_csv_f)
-        self.raw.set_annotations(mov_annot)
-
     def detectBadChannels(self, zscore_v=4, save_csv=True, overwrite=False):
         """ zscore_v = zscore threshold, save_csv: path_tosaveCSV
         """
@@ -147,6 +127,29 @@ class MNEprepro():
                 self.csv_save(bad_chns, out_csv_f)
             self.raw.info['bads'] = bad_chns
             self.ch_max_Z = max_Z
+
+# TODO save annotations and just load them if exist
+    def detectMov(self, threshold_mov=.005, do_plot=True, overwrite=False,
+                  my_own_pos=False):
+        fname = self.subject + '_' + self.experiment + '_mov.csv'
+        out_csv_f = op.join(self.out_bd_ch, fname)
+        if op.exists(out_csv_f) and not overwrite:
+            mov_annot = read_annotations(out_csv_f)
+            print('Reading from file, mov segments are:', mov_annot)
+        else:
+            pos = mne.chpi._calculate_head_pos_ctf(self.raw)
+            if do_plot is True:
+                mov_annot, araw = annotate_motion_artifacts(self.raw, pos,
+                                  disp_thr=threshold_mov, velo_thr=None,
+                                  gof_thr=None, return_stat_raw=True)
+                tresholds = {'motion_disp_thresh': threshold_mov*10}
+                plot_artifacts(araw, tresholds)
+            else:
+                araw = annotate_motion_artifacts(self.raw, pos,
+                                                 disp_thr=threshold_mov,
+                                                 velo_thr=None, gof_thr=None)
+            mov_annot.save(out_csv_f)
+        self.raw.set_annotations(mov_annot)
 
     def csv_save(self, data, out_fname):
         with open(out_fname, "w") as f:
@@ -354,3 +357,82 @@ def _annotations_from_mask(times, art_mask, art_name):
             durations.append(times[l_idx[-1]] - times[l_idx[0]])
         desc.append(art_name)
     return Annotations(onsets, durations, desc)
+
+
+#########################################################
+########## MOtion artifacts and head pos correction
+#########################################################
+    
+def annotate_motion(raw, pos, disp_thr=0.01,gof_thr=0.99,
+                    return_stat_raw=False):
+    """Find and annotate periods of high HPI velocity and high HPI distance.
+        written by Luke Bloy"""
+    annot = Annotations([], [], [])
+
+    info = raw.info
+    # grab initial cHPI locations
+    # point sorted in hpi_results are in mne device coords
+    chpi_locs_dev = sorted([d for d in info['hpi_results'][-1]
+                            ['dig_points']], key=lambda x: x['ident'])
+    chpi_locs_dev = np.array([d['r'] for d in chpi_locs_dev])
+    # chpi_locs_dev[0] -> LPA
+    # chpi_locs_dev[1] -> NASION
+    # chpi_locs_dev[2] -> RPA
+    chpi_static_head = apply_trans(info['dev_head_t'], chpi_locs_dev)
+
+    time = pos[:, 0]
+    n_hpi = chpi_static_head.shape[0]
+    quats = pos[:, 1:7]
+    chpi_moving_head = np.array([_apply_quat(quat, chpi_locs_dev, move=True)
+                                 for quat in quats])
+    # Get median head pos during recording
+    tmp_med_head = np.median(chpi_moving_head, axis=0)
+    hpi_disp = chpi_moving_head - np.tile(tmp_med_head, (len(time), 1, 1))
+    hpi_disp_dist = (hpi_disp.reshape(-1, hpi_disp.shape[1]*hpi_disp.shape[2]) 
+                  ** 2).sum(axis=1)
+    chpi_median_pos= chpi_moving_head[hpi_disp_dist.argmin(),:,:]
+
+    # compute displacements
+    hpi_disp = chpi_moving_head - np.tile(chpi_median_pos, (len(time), 1, 1))
+    hpi_disp = np.sqrt((hpi_disp**2).sum(axis=-1))
+
+    art_mask = hpi_disp > disp_thr
+    annot += _annotations_from_mask(time, art_mask,
+                                    'Bad-motion-dist>%0.3f' % disp_thr)
+
+    art_mask = pos[:, 7] <= gof_thr
+    annot += _annotations_from_mask(time, art_mask,
+                                    'Bad-chpi_gof>%0.3f' % gof_thr)
+
+    tmp = 1000 * hpi_disp.max(axis=0)
+    _fmt = '\tHPI00 - %0.1f'
+    for i in range(1, n_hpi):
+        _fmt += '\n\tHPI%02d' % (i) +' - %0.1f'
+    logger.info('CHPI MAX Displacments (mm):')
+    logger.info(_fmt % tuple(tmp))
+
+    raw_hpi = None
+    if return_stat_raw:
+        n_times = len(raw.times)
+        # build full time data arrays
+        start_idx = raw.time_as_index(time, use_rounding=True)
+        end_idx = raw.time_as_index(np.append(time[1:], raw.times[-1]),
+                                    use_rounding=True)
+        data_pos = np.zeros((n_hpi, n_times))
+        for t_0, t_1, disp_val, velo_val in zip(start_idx, end_idx,
+                                                hpi_disp):
+            t_slice = slice(t_0, t_1)
+            data_pos[:n_hpi, t_slice] = np.tile(disp_val, (t_1 - t_0, 1)).T
+
+        ch_names = []
+        for i in range(n_hpi):
+            ch_names.append('HPI%02d_disp_pos' % i)
+
+        # build raw object!
+        info = create_info(
+                        ch_names=ch_names,
+                        ch_types=np.repeat('misc', len(ch_names)),
+                        sfreq=raw.info['sfreq'])
+        raw_hpi = RawArray(data_pos, info)
+
+    return annot, raw_hpi
