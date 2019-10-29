@@ -124,7 +124,7 @@ class MNEprepro():
             self.raw.info['bads'] = bad_chns
             self.ch_max_Z = max_Z
 
-    def detectMov(self, thr_mov=.005, do_plot=True, overwrite=False):
+    def detectMov(self, thr_mov=.01, do_plot=True, overwrite=False):
         from mne.transforms import read_trans
         fname = self.subject + '_' + self.experiment + '_mov.csv'
         out_csv_f = op.join(self.out_annot, fname)
@@ -136,15 +136,15 @@ class MNEprepro():
             print('Reading from file, dev to head transformation')
             dev_head_t = read_trans(out_csv_f_t)
         else:
-            pos = mne.chpi._calculate_head_pos_ctf(self.raw)
             print('Calculating head pos')
+            pos = mne.chpi._calculate_head_pos_ctf(self.raw)
             mov_annot, hpi_disp, dev_head_t = annotate_motion(self.raw, pos,
                                                               thr=thr_mov)
             if do_plot is True:
                 plt.figure()
                 plt.plot(hpi_disp)
                 plt.axhline(y=thr_mov, color='r')
-                plt.show(block=False)
+                plt.show(block=True)
             mov_annot.save(out_csv_f)
             dev_head_t.save(out_csv_f_t)
         self.raw.set_annotations(mov_annot)
