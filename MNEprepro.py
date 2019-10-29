@@ -137,12 +137,14 @@ class MNEprepro():
             dev_head_t = read_trans(out_csv_f_t)
         else:
             pos = mne.chpi._calculate_head_pos_ctf(self.raw)
+            print('Calculating head pos')
             mov_annot, hpi_disp, dev_head_t = annotate_motion(self.raw, pos,
                                                               thr=thr_mov)
             if do_plot is True:
                 plt.figure()
                 plt.plot(hpi_disp)
-                plt.show()
+                plt.axhline(y=thr_mov, color='r')
+                plt.show(block=False)
             mov_annot.save(out_csv_f)
             dev_head_t.save(out_csv_f_t)
         self.raw.set_annotations(mov_annot)
