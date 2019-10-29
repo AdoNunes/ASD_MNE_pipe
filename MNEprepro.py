@@ -124,9 +124,9 @@ class MNEprepro():
             self.raw.info['bads'] = bad_chns
             self.ch_max_Z = max_Z
 
-    def detectMov(self, thr_mov=.01, do_plot=True, overwrite=False):
+    def detectMovement(self, thr_mov=.01, plot=True, overwrite=False):
         from mne.transforms import read_trans
-        fname = self.subject + '_' + self.experiment + '_mov.csv'
+        fname = self.subject + '_' + self.experiment + '_mov.txt'
         out_csv_f = op.join(self.out_annot, fname)
         fname_t = self.subject + '_' + self.experiment + '_dev2head-trans.fif'
         out_csv_f_t = op.join(self.out_annot, fname_t)
@@ -140,7 +140,7 @@ class MNEprepro():
             pos = mne.chpi._calculate_head_pos_ctf(self.raw)
             mov_annot, hpi_disp, dev_head_t = annotate_motion(self.raw, pos,
                                                               thr=thr_mov)
-            if do_plot is True:
+            if plot is True:
                 plt.figure()
                 plt.plot(hpi_disp)
                 plt.axhline(y=thr_mov, color='r')
@@ -150,6 +150,47 @@ class MNEprepro():
         self.raw.set_annotations(mov_annot)
         self.raw.info['dev_head_t_old'] = self.raw.info['dev_head_t']
         self.raw.info['dev_head_t'] = dev_head_t
+
+    def detectMuscle(self, thr=2, t_min=2, plot=True, overwrite=False):
+        """Find and annotate mucsle artifacts."""
+        fname = self.subject + '_' + self.experiment + '_mus.txt'
+        out_csv_f = op.join(self.out_annot, fname)
+        if op.exists(out_csv_f) and not overwrite:
+            mus_annot = read_annotations(out_csv_f)
+            print('Reading from file, muscle segments are:', mus_annot)
+        else:
+            print('Calculating muscle artifacts')
+            raw = self.raw.copy().load_data()
+            raw.pick_types(meg=True, ref_meg=False)
+            raw.notch_filter(np.arange(60, 241, 60), fir_design='firwin')
+            raw.filter(110, 140, fir_design='firwin')
+            raw.apply_hilbert(envelope=True)
+            sfreq = raw.info['sfreq']
+            art_scores = stats.zscore(raw._data, axis=1)
+            art_scores_filt = mne.filter.filter_data(art_scores.mean(axis=0),
+                                                     sfreq, None, 5)
+            art_mask = art_scores_filt > thr
+            # remove artifact free periods shorter than t_min
+            idx_min = t_min * sfreq
+            comps, num_comps = label(art_mask == 0)
+            for l in range(1, num_comps+1):
+                l_idx = np.nonzero(comps == l)[0]
+                if len(l_idx) < idx_min:
+                    art_mask[l_idx] = True
+            mus_annot = _annotations_from_mask(raw.times, art_mask,
+                                               'Bad-muscle')
+            if plot:
+                del raw
+                print('Plotting data, mark or delete art, by pressing a')
+                raw = self.raw.copy().load_data().pick_types(meg=True,
+                                                             ref_meg=False)
+                raw.notch_filter(np.arange(60, 181, 60), fir_design='firwin')
+                raw.filter(1, 150)
+                raw.set_annotations(mus_annot)
+                raw.plot(n_channels=270, block=True)
+                mus_annot = raw.annotations
+            mus_annot.save(out_csv_f)
+        self.raw.set_annotations(self.raw.annotations + mus_annot)
 
     def csv_save(self, data, out_fname):
         with open(out_fname, "w") as f:
@@ -173,7 +214,7 @@ class MNEprepro():
             from mne.preprocessing import ICA
             raw_copy = self.raw.copy().load_data().filter(1, 45)
             self.ica = ICA(method='fastica', random_state=42,
-                           n_components=0.99, max_iter=500)
+                           n_components=0.999, max_iter=500)
             picks = mne.pick_types(raw_copy.info, meg=True, ref_meg=False,
                                    stim=False, exclude='bads')
             reject = dict(grad=4000e-13, mag=4e-12)  # what rejec intervals?
@@ -248,49 +289,13 @@ class MNEprepro():
                             picks=('meg'))
         return epochs
 
-    def detect_muscartif(self, art_thresh=2, t_min=2,
-                         desc='Bad-muscle', n_jobs=1, return_stat_raw=False,
-                         plot=True):
-        """Find and annotation mucsle artifacts."""
-        raw = self.raw.copy().load_data()
-        # pick meg_chans
-        raw.info['comps'] = []
-        raw.pick_types(meg=True, ref_meg=False)
-        raw.filter(110, 140, n_jobs=n_jobs, fir_design='firwin')
-        raw.apply_hilbert(n_jobs=n_jobs, envelope=True)
-        sfreq = raw.info['sfreq']
-        art_scores = stats.zscore(raw._data, axis=1)
-        stat_raw = None
-        art_scores_filt = mne.filter.filter_data(art_scores.mean(axis=0),
-                                                 sfreq, None, 5)
-        art_mask = art_scores_filt > art_thresh
-        if return_stat_raw:
-            tmp_info = mne.create_info(['mucsl_score'], raw.info['sfreq'],
-                                       ['misc'])
-            stat_raw = mne.io.RawArray(art_scores_filt.reshape(1, -1),
-                                       tmp_info)
-
-        # remove artifact free periods under threshold
-        idx_min = t_min * sfreq
-        comps, num_comps = label(art_mask == 0)
-        for l in range(1, num_comps+1):
-            l_idx = np.nonzero(comps == l)[0]
-            if len(l_idx) < idx_min:
-                art_mask[l_idx] = True
-        if plot:
-            raw = self.raw.copy().load_data()
-            raw.set_annotations(_annotations_from_mask(raw.times, art_mask,
-                                                       desc))
-            raw.plot()
-        return _annotations_from_mask(raw.times, art_mask, desc), stat_raw
-
 
 ##################################################################
 # Photod Diode functions
 ##################################################################
 
-def get_photodiode_events(raw):
 
+def get_photodiode_events(raw):
     raw = raw.copy()
     # pick PD channel time series from CTF data
     raw.info['comps'] = []
@@ -361,7 +366,7 @@ from mne.transforms import apply_trans
 
 
 def _annotations_from_mask(times, art_mask, art_name):
-    # make annototations
+    # make annotations
     comps, num_comps = label(art_mask)
     onsets = []
     durations = []
@@ -454,8 +459,8 @@ def weighted_median(data, weights):
     return w_median
 
 
-def annotate_motion_old(raw, pos, disp_thr=0.01,gof_thr=0.99,
-                    return_stat_raw=False):
+def annotate_motion_old(raw, pos, disp_thr=0.01, gof_thr=0.99,
+                        return_stat_raw=False):
     """Find and annotate periods of high HPI velocity and high HPI distance.
         written by Luke Bloy"""
     annot = Annotations([], [], [])
@@ -479,9 +484,9 @@ def annotate_motion_old(raw, pos, disp_thr=0.01,gof_thr=0.99,
     # Get median head pos during recording
     tmp_med_head = np.median(chpi_moving_head, axis=0)
     hpi_disp = chpi_moving_head - np.tile(tmp_med_head, (len(time), 1, 1))
-    hpi_disp_dist = (hpi_disp.reshape(-1, hpi_disp.shape[1]*hpi_disp.shape[2]) 
-                  ** 2).sum(axis=1)
-    chpi_median_pos= chpi_moving_head[hpi_disp_dist.argmin(),:,:]
+    hpi_disp_dist = (hpi_disp.reshape(-1, hpi_disp.shape[1]*hpi_disp.shape[2])
+                     ** 2).sum(axis=1)
+    chpi_median_pos = chpi_moving_head[hpi_disp_dist.argmin(), :, :]
 
     # compute displacements
     hpi_disp = chpi_moving_head - np.tile(chpi_median_pos, (len(time), 1, 1))
