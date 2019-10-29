@@ -198,7 +198,8 @@ class MNEprepro():
         fs = raw_copy.info['sfreq']
         time = raw_copy.buffer_size_sec
         N_samples = raw_copy.n_times
-        print('Data is composed from')
+        ID = self.subject
+        print('Data for subject ' + ID + ' is composed from')
         print(str(N_samples) + ' samples with ' + str(fs) + ' Hz sampl rate')
         print('Total time = ' + str(time) + 's')
         # get photodiode events from CTF data
@@ -208,7 +209,8 @@ class MNEprepro():
                                                 'UPPT001')
         Trig_ts = raw_copy.get_data(picks=Trig)
         # get events from trigger channel
-        events_trig = mne.find_events(raw_copy, stim_channel='UPPT001')
+        events_trig = mne.find_events(raw_copy, stim_channel='UPPT001',
+                                      shortest_event=1)
         
         print(str(len(Ind_PD_ON)) + ' PD ONSETS FOUND')
         
@@ -239,7 +241,7 @@ class MNEprepro():
         if plot:
             plt.figure()
             plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events,
-                        task)
+                        task, ID)
         return event_id, events
 
     def epoching(self, event_id, events, tmin=-0.4, tmax=0.5):
@@ -291,7 +293,7 @@ class MNEprepro():
 # Photod Diode functions
 ##################################################################
 
-def get_photodiode_events(raw, fs):
+def get_photodiode_events(raw, fs, plot=False):
 
     raw = raw.copy()
     # pick PD channel time series from CTF data
@@ -300,20 +302,21 @@ def get_photodiode_events(raw, fs):
     PD_ts = raw.get_data(picks=PD)
 
     # find all 'ON' states of PD
-    n, bins, patches = plt.hist(PD_ts[0, :], bins=50,
-                                range=(np.percentile(PD_ts[0, :], 1),
-                                np.percentile(PD_ts[0, :], 99)),
-                                color='#0504aa', alpha=0.7, rwidth=0.85)
-    #plt.close()
-    thr = bins[np.nonzero(n == np.min(n))]  # set a treshold
-    if len(thr) > 1:
-        thr = thr[-1]
+    if plot:
+        n, bins, patches = plt.hist(PD_ts[0, :], bins=50,
+                                    range=(np.percentile(PD_ts[0, :], 1),
+                                    np.percentile(PD_ts[0, :], 99)),
+                                    color='#0504aa', alpha=0.7, rwidth=0.85)
+    n, bins = np.histogram(PD_ts[0, :], bins=50,
+                           range=(np.percentile(PD_ts[0, :], 1),
+                                  np.percentile(PD_ts[0, :], 99)))
+    thr = bins[26]  # set a treshold
     T_PD = PD_ts > thr
     Ind_PD_ON = []
     Ind_PD_OFF = []
-    t_min = 0.16 # min PD length in ms
-    min_samp4 = round(t_min * fs/4) #quater PD min length
-    min_samp8 = round(t_min * fs/8) #1/8 PD min length
+    t_min = 0.16  # min PD length in ms
+    min_samp4 = round(t_min * fs/4)  # quater PD min length
+    min_samp8 = round(t_min * fs/8)  # 1/8 PD min length
     for ind, n in enumerate(T_PD[0, :]):
         if (n == True and T_PD[0, ind-1] == False and
             np.all(T_PD[0, ind-min_samp8:ind-1] == False) and
@@ -326,7 +329,7 @@ def get_photodiode_events(raw, fs):
     return PD_ts, Ind_PD_ON, Ind_PD_OFF, T_PD
 
 
-def plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events, task):
+def plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events, task, ID):
 
     plt.plot((PD_ts[0, :]))
     plt.plot(T_PD[0, :]*5)
@@ -340,7 +343,7 @@ def plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events, task):
     plt.plot((Trig_ts[0, :]))
     plt.ylabel('a.u.')
     plt.xlabel('samples')
-    plt.title('Photodiode and triggers timing for ' + task + ' task')
+    plt.title('PD and Trigger events timing for ' + ID + ' ' + task + ' task')
 
 
 def get_triger_names_PD(event_id, Ind_PD_ON, events_trig):
@@ -353,8 +356,9 @@ def get_triger_names_PD(event_id, Ind_PD_ON, events_trig):
         time = events_trig[ind, 0]
         for n in time:
             inx = (Ind_PD_ON-n)
-            m = min(inx[inx > 0])
-            events[inx == m, 2] = value
+            if np.any(inx[inx > 0]):
+                m = min(inx[inx > 0])
+                events[inx == m, 2] = value
     return events
 
 
