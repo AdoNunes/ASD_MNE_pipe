@@ -191,7 +191,7 @@ class MNEprepro():
         if not op.exists(out_fname) or overwrite:
             self.ica.save(out_fname)
 
-    def get_events(self, plot=1):
+    def get_events(self, plot=True):
         # general description of the data
         raw_copy = self.raw.copy()
         task = self.experiment
@@ -202,23 +202,25 @@ class MNEprepro():
         print(str(N_samples) + ' samples with ' + str(fs) + ' Hz sampl rate')
         print('Total time = ' + str(time) + 's')
         # get photodiode events from CTF data
-        PD_ts, Ind_PD_ON, Ind_PD_OFF, T_PD = get_photodiode_events(raw_copy)
+        PD_ts, Ind_PD_ON, Ind_PD_OFF, T_PD = get_photodiode_events(raw_copy,fs)
         # pick Trigger channel time series from CTF data
         Trig = mne.io.pick.pick_channels_regexp(raw_copy.info['ch_names'],
                                                 'UPPT001')
         Trig_ts = raw_copy.get_data(picks=Trig)
         # get events from trigger channel
         events_trig = mne.find_events(raw_copy, stim_channel='UPPT001')
-
+        
+        print(str(len(Ind_PD_ON)) + ' PD ONSETS FOUND')
+        
+                
         if task == 'Car':
             event_id = {'Transp/H2L': 10, 'Transp/L2H': 20,
                         'NotTransp/H2L': 30, 'NotTransp/L2H': 40}
             # get trigger names for PD ON states
             events = get_triger_names_PD(event_id, Ind_PD_ON, events_trig)
-
+            
         elif task == 'Movie':
-            if len(Ind_PD_ON) and len(Ind_PD_OFF) != 196:
-                print('NOT ALL OF THE PD STIM PRESENT!!!')
+            
             event_id = {'SceneOnset': 1}
             events = np.zeros((len(Ind_PD_ON), 3))
             events[:, 0] = Ind_PD_ON
@@ -289,7 +291,7 @@ class MNEprepro():
 # Photod Diode functions
 ##################################################################
 
-def get_photodiode_events(raw):
+def get_photodiode_events(raw, fs):
 
     raw = raw.copy()
     # pick PD channel time series from CTF data
@@ -302,16 +304,24 @@ def get_photodiode_events(raw):
                                 range=(np.percentile(PD_ts[0, :], 1),
                                 np.percentile(PD_ts[0, :], 99)),
                                 color='#0504aa', alpha=0.7, rwidth=0.85)
+    #plt.close()
     thr = bins[np.nonzero(n == np.min(n))]  # set a treshold
     if len(thr) > 1:
         thr = thr[-1]
     T_PD = PD_ts > thr
     Ind_PD_ON = []
     Ind_PD_OFF = []
+    t_min = 0.16 # min PD length in ms
+    min_samp4 = round(t_min * fs/4) #quater PD min length
+    min_samp8 = round(t_min * fs/8) #1/8 PD min length
     for ind, n in enumerate(T_PD[0, :]):
-        if (n == True and T_PD[0, ind-1] == False and np.all(T_PD[0, ind-10:ind-1] == False)):
+        if (n == True and T_PD[0, ind-1] == False and
+            np.all(T_PD[0, ind-min_samp8:ind-1] == False) and
+            np.all(T_PD[0, ind+min_samp8:ind+min_samp4] == True)):
             Ind_PD_ON.append(ind)
-        elif (n == False and T_PD[0, ind-1] == True and np.all(T_PD[0, ind-10:ind-1] == True)):
+        elif (n == False and T_PD[0, ind-1] == True and
+              np.all(T_PD[0, ind-min_samp8:ind-1] == True) and
+              np.all(T_PD[0, ind+min_samp8:ind+min_samp4] == False)):
             Ind_PD_OFF.append(ind)
     return PD_ts, Ind_PD_ON, Ind_PD_OFF, T_PD
 
