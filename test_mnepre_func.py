@@ -40,19 +40,17 @@ experiment = 'Flanker'
 raw_prepro = MNEprepro(subject, experiment, paths_dic)
 
 # %% Detect and reject bad channels
-raw_prepro.detectBadChannels(save_csv=True, overwrite=False)
+raw_prepro.detect_bad_channels(save_csv=True, overwrite=False)
 
 # %% Detect and reject moving periods
-raw_prepro.detectMovement()
+raw_prepro.detect_movement()
 # %% Muscle artifacts
-raw_prepro.detectMuscle(plot=True)
+raw_prepro.detect_muscle(overwrite=False, plot=True)
 
-# %% Create ICA components
-raw_prepro.run_ICA(overwrite=False)
-raw_prepro.plot_ICA()
-print("didnt stoppppp")
-# %% Save ICA components
-raw_prepro.save_ICA(overwrite=False)
+# %%Run
+raw_prepro.run_ICA(overwrite=True)
+# %%
+
 
 
 # %% Events
