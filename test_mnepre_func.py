@@ -43,10 +43,9 @@ raw_prepro = MNEprepro(subject, experiment, paths_dic)
 raw_prepro.detectBadChannels(save_csv=True, overwrite=False)
 
 # %% Detect and reject moving periods
-raw_prepro.detectMov()
-
+raw_prepro.detectMovement()
 # %% Muscle artifacts
-raw_prepro.detect_muscartif(plot=True)
+raw_prepro.detectMuscle(plot=True)
 
 # %% Create ICA components
 raw_prepro.run_ICA(overwrite=False)
@@ -57,7 +56,7 @@ raw_prepro.save_ICA(overwrite=False)
 
 
 # %% Events
-events, event_id  = raw_prepro.get_events(plot=1)
+#events, event_id  = raw_prepro.get_events(plot=1)
 
 
 """
