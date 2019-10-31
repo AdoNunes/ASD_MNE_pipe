@@ -96,7 +96,7 @@ class MNEprepro():
         fname = self.subject + '_' + self.experiment + '_bads.csv'
         out_csv_f = op.join(self.out_bd_ch, fname)
         if op.exists(out_csv_f) and not overwrite:
-            bad_chns = self.csv_read(out_csv_f)
+            bad_chns = csv_read(out_csv_f)
             print('Reading from file, bad chans are:', bad_chns)
         else:
             from itertools import compress
@@ -116,7 +116,7 @@ class MNEprepro():
                 print('Bad chans are:', bad_chns)
             else:
                 print('No bad chans found')
-            self.csv_save(bad_chns, out_csv_f)
+            csv_save(bad_chns, out_csv_f)
             self.ch_max_Z = max_Z
         self.raw.info['bads'] = bad_chns
 
@@ -381,8 +381,8 @@ def _annotations_from_mask(times, art_mask, art_name):
 
 
 def annotate_motion(raw, pos, thr=0.01):
-    """Find and annotate periods of high HPI velocity and high HPI distance.
-        written originally by Luke Bloy"""
+    """Find and annotate periods of high HPI distance w.r.t the median HPI pos
+        and readjust trans matrix dev->head - written originally by Luke Bloy"""
     annot = Annotations([], [], [])
 
     info = raw.info
