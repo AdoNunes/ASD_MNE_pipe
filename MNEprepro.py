@@ -7,7 +7,10 @@ import numpy as np
 import csv
 from mne.annotations import Annotations, read_annotations
 import matplotlib.pyplot as plt
+from matplotlib.pyplot import figure as pfig
+from matplotlib.pyplot import  plot as pplot
 from scipy import stats
+import pandas as pd
 from scipy.ndimage.measurements import label
 from mne.io.ctf.trans import _quaternion_align
 from mne.chpi import _apply_quat
@@ -91,7 +94,8 @@ class MNEprepro():
         makedirs(self.out_annot, exist_ok=True)
         makedirs(self.out_ICAs, exist_ok=True)
 
-    def detect_bad_channels(self, zscore_v=4, overwrite=False):
+    def detect_bad_channels(self, zscore_v=4, overwrite=False, method='both',
+                            neigh_max_distance=.035):
         """ zscore_v = zscore threshold, save_csv: path_tosaveCSV"""
         fname = self.subject + '_' + self.experiment + '_bads.csv'
         out_csv_f = op.join(self.out_bd_ch, fname)
@@ -101,16 +105,53 @@ class MNEprepro():
         else:
             from itertools import compress
             print('Looking for bad channels')
-            raw_copy = self.raw.copy().crop(30., 220.).load_data()
+
+            # set recording length
+            Fs = self.raw.info['sfreq']
+            t1x = 30
+            t2x = 220
+            t2 = min(self.raw.last_samp/Fs, t2x)
+            t1 = max(0, t1x + t2-t2x)  # Start earlier if recording is shorter
+
+            # Get data
+            raw_copy = self.raw.copy().crop(t1, t2).load_data()
             raw_copy = raw_copy.pick_types(meg=True, ref_meg=False)\
                 .filter(1, 45).resample(150, npad='auto')
-            max_Pow = np.sqrt(np.sum(raw_copy.get_data() ** 2, axis=1))
+            data_chans = raw_copy.get_data()
+
+            # Get channel distances matrix
+            chns_locs = np.asarray([x['loc'][:3] for x in
+                                    raw_copy.info['chs']])
+            chns_dist = np.linalg.norm(chns_locs - chns_locs[:, None],
+                                       axis=-1)
+            chns_dist[chns_dist > neigh_max_distance] = 0
+
+            # Get avg channel uncorrelation between neighbours
+            chns_corr = np.abs(np.corrcoef(data_chans))
+            weig = np.array(chns_dist, dtype=bool)
+            chn_nei_corr = np.average(chns_corr, axis=1, weights=weig)
+            chn_nei_uncorr_z = zscore(1-chn_nei_corr)  # l ower corr higer Z
+
+            # Get channel magnitudes
+            max_Pow = np.sqrt(np.sum(data_chans ** 2, axis=1))
             max_Z = zscore(max_Pow)
-            max_th = max_Z > zscore_v
+
+            if method == 'corr':  # Based on local uncorrelation
+                feat_vec = chn_nei_uncorr_z
+                max_th = feat_vec > zscore_v
+            elif method == 'norm':  # Based on magnitude
+                feat_vec = max_Z
+                max_th = feat_vec > zscore_v
+            elif method == 'both':  # Combine uncorrelation with magnitude
+                feat_vec = (chn_nei_uncorr_z+max_Z)/2
+                max_th = (feat_vec) > zscore_v
+
             bad_chns = list(compress(raw_copy.info['ch_names'], max_th))
             raw_copy.info['bads'] = bad_chns
             if bad_chns:
-                print('Plotting data,bad chans are:', bad_chns)
+                print(['Plotting data,bad chans are:'] + bad_chns)
+                pfig(), pplot(feat_vec), plt.axhline(zscore_v)
+                plt.title(['Plotting data,bad chans are:'] + bad_chns)
                 raw_copy.plot(n_channels=100, block=True, bad_color='r')
                 bad_chns = raw_copy.info['bads']
                 print('Bad chans are:', bad_chns)
@@ -477,4 +518,8 @@ def csv_read(out_fname):
         reader = csv.reader(f, delimiter=',')
         for col in reader:
             csv_dat.append(col)
-    return csv_dat[-1]
+    try:
+        csv_dat = csv_dat[-1]
+    except IndexError:
+        csv_dat = csv_dat
+    return csv_dat

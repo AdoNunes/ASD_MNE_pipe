@@ -29,32 +29,35 @@ paths_dic = {  # "root": "/Volumes/Data_projec/data/REPO/MEG_repo",
 Host = (socket.gethostname())
 
 if Host == 'owners-MacBook-Pro.local':
-    paths_dic['root'] = "~/Desktop/projects/MNE/data"
+    paths_dic['root'] = "/Volumes/4TB_drive/projects/MEG_repo/MEG_children_rs"
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
 elif Host == 'sc-155028' or 'sc-155014':
     paths_dic['root'] = "~/Desktop/MEG_children_rs"
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
 
 subject = '18011045C'
-experiment = 'CarTask'
+experiment = 'Flanker'
 
-pth_tmp = op.join(op.expanduser(paths_dic["root"]),'18011*')
+pth_tmp = op.join(op.expanduser(paths_dic["root"]), '18011*')
 Subj_list = glob.glob(pth_tmp)
-    
-for iSubj in Subj_list[:3]:
-    
-    subject = op.basename( iSubj)
-    print ('Preprocessing subject: '+ subject )
+
+for iSubj in Subj_list:
+
+    subject = op.basename(iSubj)
+    print('Preprocessing subject: ' + subject)
 
     # %% Create Class object
-    raw_prepro = MNEprepro(subject, experiment, paths_dic)
+    try:
+        raw_prepro = MNEprepro(subject, experiment, paths_dic)
+    except IndexError:
+        continue
 
     # %% Detect and reject bad channels
-    raw_prepro.detect_bad_channels(overwrite=True)
+    raw_prepro.detect_bad_channels(zscore_v=4, overwrite=False)
 
+    # %% Detect and reject moving periods
+    raw_prepro.detect_movement()
 sys.exit()
-# %% Detect and reject moving periods
-raw_prepro.detect_movement()
 # %% Muscle artifacts
 raw_prepro.detect_muscle(overwrite=False, plot=True)
 
