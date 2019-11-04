@@ -174,7 +174,7 @@ class MNEprepro():
             dev_head_t = read_trans(out_csv_f_t)
         else:
             print('Calculating head pos')
-            pos = mne.chpi._calculate_head_pos_ctf(self.raw)
+            pos = mne.chpi._calculate_head_pos_ctf(self.raw, gof_limit=-1)
             mov_annot, hpi_disp, dev_head_t = annotate_motion(self.raw, pos,
                                                               thr=thr_mov)
             if plot is True:
@@ -220,14 +220,22 @@ class MNEprepro():
                                                'Bad-muscle')
             if plot:
                 del raw
-                print('Plotting data, mark or delete art, by pressing a')
+                print('Plotting data, mark or delete art, by pressing a \n'
+                      'Marked or demarked channels will be saved')
+                old_bd_chns = self.raw.info['bads']
                 raw = self.raw.copy().load_data().pick_types(meg=True,
                                                              ref_meg=False)
                 raw.notch_filter(np.arange(60, 181, 60), fir_design='firwin')
-                raw.filter(1, 150)
-                raw.set_annotations(mus_annot)
-                raw.plot(n_channels=270, block=True)
+                raw.filter(1, 140)
+                raw.set_annotations(raw.annotations + mus_annot)
+                raw.plot(n_channels=140, block=True, bad_color='r')
                 mus_annot = raw.annotations
+                if not (old_bd_chns == raw.info['bads']):
+                    bad_chns = raw.info['bads']
+                    print('Saving new bad channels list \n ')
+                    print('Bad chans are:', bad_chns)
+                    fname = self.subject + '_' + self.experiment + '_bads.csv'
+                    csv_save(bad_chns, op.join(self.out_bd_ch, fname))
             mus_annot.save(out_csv_f)
         self.raw.set_annotations(self.raw.annotations + mus_annot)
         self.annot_muscle = mus_annot

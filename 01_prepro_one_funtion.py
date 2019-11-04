@@ -36,10 +36,11 @@ elif Host == 'sc-155028' or 'sc-155014':
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
 
 subject = '18011045C'
-experiment = 'Flanker'
+experiment = 'CarTask'
 
 pth_tmp = op.join(op.expanduser(paths_dic["root"]), '18011*')
 Subj_list = glob.glob(pth_tmp)
+
 
 for iSubj in Subj_list:
 
@@ -56,10 +57,12 @@ for iSubj in Subj_list:
     raw_prepro.detect_bad_channels(zscore_v=4, overwrite=False)
 
     # %% Detect and reject moving periods
-    raw_prepro.detect_movement()
+    raw_prepro.detect_movement(plot=False)
+
+    # %% Muscle artifacts
+    raw_prepro.detect_muscle(overwrite=False, plot=True)
+
 sys.exit()
-# %% Muscle artifacts
-raw_prepro.detect_muscle(overwrite=False, plot=True)
 
 # %%Run
 raw_prepro.run_ICA(overwrite=True)
