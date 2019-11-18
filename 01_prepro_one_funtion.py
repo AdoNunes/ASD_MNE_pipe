@@ -8,8 +8,7 @@ Created on Tue Oct 15 14:21:06 2019
 test MNEprepro class
 """
 
-import appnope
-appnope.nope()
+
 
 from MNEprepro import MNEprepro
 import time
@@ -31,9 +30,13 @@ Host = (socket.gethostname())
 if Host == 'owners-MacBook-Pro.local':
     paths_dic['root'] = "/Volumes/4TB_drive/projects/MEG_repo/MEG_children_rs"
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
+    import appnope
+    appnope.nope()
 elif Host == 'sc-155028' or 'sc-155014':
     paths_dic['root'] = "~/Desktop/MEG_children_rs"
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
+    import appnope
+    appnope.nope()
 
 subject = '18011045C'
 experiment = 'Movie'
