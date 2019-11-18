@@ -184,6 +184,7 @@ class MNEprepro():
                 plt.show(block=True)
             mov_annot.save(out_csv_f)
             dev_head_t.save(out_csv_f_t)
+            fig.savefig(out_csv_f[:-4]+'.png')
         self.raw.set_annotations(mov_annot)
         self.raw.info['dev_head_t_old'] = self.raw.info['dev_head_t']
         self.raw.info['dev_head_t'] = dev_head_t
@@ -228,7 +229,7 @@ class MNEprepro():
                 raw.notch_filter(np.arange(60, 181, 60), fir_design='firwin')
                 raw.filter(1, 140)
                 raw.set_annotations(raw.annotations + mus_annot)
-                raw.plot(n_channels=140, block=True, bad_color='r')
+                raw.plot(n_channels=140, block=True, bad_color='r', exclude=[])
                 mus_annot = raw.annotations
                 if not (old_bd_chns == raw.info['bads']):
                     bad_chns = raw.info['bads']
@@ -254,20 +255,38 @@ class MNEprepro():
                                    stim=False, exclude='bads')
             reject = dict(grad=4000e-13, mag=4e-12)  # what rejec intervals?
             self.ica.fit(raw_copy, picks=picks, reject=reject, decim=3)
-            # Plot interactively
-            data_not_clean = True
-            while data_not_clean is True:
-                self.ica.plot_components()
-                self.ica.plot_sources(raw_copy, block=True)
-
-                raw_copy.plot(n_channels=136, title='NO ICA')
-                raw_ica = raw_copy.copy().pick_types(meg=True, ref_meg=False)
-
-                self.ica.apply(raw_ica)
-                raw_ica.plot(n_channels=136, title='ICA cleaned', block=True)
-                data_not_clean = bool(int(input("Select more ICA components? "
-                                                "[0-no, 1-yes]: ")))
+            self.ica.detect_artifacts(raw_copy)
+            self.ica.done = False
             self.ica.save(out_fname)
+
+    def plot_ICA(self, check_if_done=True, overwrite=False):
+        fname = self.subject + '_' + self.experiment + '-ica.fif.gz'
+        out_fname = op.join(self.out_ICAs, fname)
+        # Load previous ICA instance
+        if op.exists(out_fname) and not overwrite:
+            self.ica = mne.preprocessing.read_ica(out_fname)
+            self.ica.done = False
+        else:
+            self.run_ICA(self)
+        # Check if ICA comps were inspected
+        data_not_clean = True
+        if check_if_done is True:
+            if self.ica.done is True:
+                data_not_clean = False
+        # Plot interactively to select bad comps
+        if data_not_clean is True:
+            raw_copy = self.raw.copy().load_data().filter(1, 45)
+        while data_not_clean is True:
+            # ICA comp plotting
+            self.ica.plot_components(inst=raw_copy)
+            self.ica.plot_sources(raw_copy, block=True)
+            # Clean and raw sensor plotting
+            raw_copy.plot(n_channels=136, title='NO ICA')
+            raw_ica = raw_copy.copy().pick_types(meg=True, ref_meg=False)
+            self.ica.apply(raw_ica)
+            raw_ica.plot(n_channels=136, title='ICA cleaned', block=True)
+            data_not_clean = bool(int(input("Select other ICA components? "
+                                            "[0-no, 1-yes]: ")))
 
     def get_events(self, plot=True):
         # general description of the data
