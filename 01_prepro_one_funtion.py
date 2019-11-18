@@ -36,13 +36,13 @@ elif Host == 'sc-155028' or 'sc-155014':
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
 
 subject = '18011045C'
-experiment = 'CarTask'
+experiment = 'Movie'
 
 pth_tmp = op.join(op.expanduser(paths_dic["root"]), '18011*')
 Subj_list = glob.glob(pth_tmp)
 
 
-for iSubj in Subj_list:
+for iSubj in Subj_list[3:]:
 
     subject = op.basename(iSubj)
     print('Preprocessing subject: ' + subject)
@@ -61,13 +61,11 @@ for iSubj in Subj_list:
 
     # %% Muscle artifacts
     raw_prepro.detect_muscle(overwrite=False, plot=True)
-
-sys.exit()
-
-# %%Run
-raw_prepro.run_ICA(overwrite=True)
+    # %%Run
+    raw_prepro.run_ICA(overwrite=False)
+    raw_prepro.plot_ICA()
 # %%
-
+sys.exit()
 
 
 # %% Events
