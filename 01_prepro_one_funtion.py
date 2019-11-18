@@ -37,7 +37,7 @@ elif Host == 'sc-155028' or 'sc-155014':
 
 subject = '18011045C'
 # options 'Movie', 'CarTask', 'Flanker'
-experiment = 'CarTask'
+experiment = 'Movie'
 
 pth_tmp = op.join(op.expanduser(paths_dic["root"]), '18011*')
 Subj_list = glob.glob(pth_tmp)
@@ -69,7 +69,6 @@ sys.exit()
 raw_prepro.run_ICA(overwrite=True)
 # %%
 
-mne.annotations
 
 # %% Events
 #events, event_id  = raw_prepro.get_events(plot=1)
