@@ -184,7 +184,7 @@ class MNEprepro():
                 plt.show(block=True)
             mov_annot.save(out_csv_f)
             dev_head_t.save(out_csv_f_t)
-            fig.savefig(out_csv_f[:-4]+'.png')
+            #fig.savefig(out_csv_f[:-4]+'.png')
         self.raw.set_annotations(mov_annot)
         self.raw.info['dev_head_t_old'] = self.raw.info['dev_head_t']
         self.raw.info['dev_head_t'] = dev_head_t
