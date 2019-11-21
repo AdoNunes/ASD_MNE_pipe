@@ -1,3 +1,7 @@
+#!/bin/bash
+
+# run this script specifying fresurfer home directory and meg data directory
+# note, meg data directory should have anatomy dir with T1 image
 
 SUBJECTS_DIR=/Users/nkozhemi/Desktop/REPO/Freesurfer/
 MEG_DIR=/Users/nkozhemi/Desktop/REPO/MEG_repo/MEG/
