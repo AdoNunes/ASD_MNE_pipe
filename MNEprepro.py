@@ -229,7 +229,7 @@ class MNEprepro():
                 raw.notch_filter(np.arange(60, 181, 60), fir_design='firwin')
                 raw.filter(1, 140)
                 raw.set_annotations(raw.annotations + mus_annot)
-                raw.plot(n_channels=140, block=True, bad_color='r', exclude=[])
+                raw.plot(n_channels=140, block=True, bad_color='r')
                 mus_annot = raw.annotations
                 if not (old_bd_chns == raw.info['bads']):
                     bad_chns = raw.info['bads']
@@ -265,13 +265,13 @@ class MNEprepro():
         # Load previous ICA instance
         if op.exists(out_fname) and not overwrite:
             self.ica = mne.preprocessing.read_ica(out_fname)
-            self.ica.done = False
+            self.ica.info['description'] == 'done'
         else:
             self.run_ICA(self)
         # Check if ICA comps were inspected
         data_not_clean = True
         if check_if_done is True:
-            if self.ica.done is True:
+            if self.ica.info['description'] == 'done':
                 data_not_clean = False
         # Plot interactively to select bad comps
         if data_not_clean is True:
@@ -287,6 +287,9 @@ class MNEprepro():
             raw_ica.plot(n_channels=136, title='ICA cleaned', block=True)
             data_not_clean = bool(int(input("Select other ICA components? "
                                             "[0-no, 1-yes]: ")))
+            if data_not_clean is False:
+                self.ica.info['description'] = 'done'
+                self.ica.save(out_fname)
 
     def get_events(self, plot=True):
         # general description of the data
