@@ -8,10 +8,7 @@ Created on Tue Oct 15 14:21:06 2019
 test MNEprepro class
 """
 
-
-
 from MNEprepro import MNEprepro
-import time
 import socket
 import glob
 import sys
@@ -32,22 +29,26 @@ if Host == 'owners-MacBook-Pro.local':
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
     import appnope
     appnope.nope()
-elif Host == 'sc-155028' or 'sc-155014':
+elif Host == 'sc-155028' or Host == 'sc-155014':
     paths_dic['root'] = "~/Desktop/REPO/MEG_repo/MEG_children_rs"
     paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
     import appnope
     appnope.nope()
+elif Host == 'megryan.nmr.mgh.harvard.edu':
+    path_gen = '/local_mount/space/megryan/2/users/adonay/projects/ASD/'
+    paths_dic['root'] = path_gen +"/MEG_children_rs"
+    paths_dic['out'] = path_gen + "/data_prep"
 
 subject = '18011045C'
 
 # options 'Movie', 'CarTask', 'Flanker'
-experiment = 'Movie'
+experiment = 'CarTask'
 
 pth_tmp = op.join(op.expanduser(paths_dic["root"]), '18011*')
-Subj_list = glob.glob(pth_tmp)
+Subj_list = sorted(glob.glob(pth_tmp))
 
-
-for iSubj in Subj_list[3:]:
+# %%
+for iSubj in Subj_list[0:1]:
 
     subject = op.basename(iSubj)
     print('Preprocessing subject: ' + subject)
@@ -69,6 +70,7 @@ for iSubj in Subj_list[3:]:
     # %%Run
     raw_prepro.run_ICA(overwrite=False)
     raw_prepro.plot_ICA()
+    sys.exit()
 # %%
 sys.exit()
 
