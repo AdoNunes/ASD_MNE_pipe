@@ -48,7 +48,7 @@ pth_tmp = op.join(op.expanduser(paths_dic["root"]), '18011*')
 Subj_list = sorted(glob.glob(pth_tmp))
 
 # %%
-for iSubj in Subj_list[0:1]:
+for iSubj in Subj_list[3:]:
 
     subject = op.basename(iSubj)
     print('Preprocessing subject: ' + subject)
@@ -69,13 +69,56 @@ for iSubj in Subj_list[0:1]:
     raw_prepro.detect_muscle(overwrite=False, plot=True)
     # %%Run
     raw_prepro.run_ICA(overwrite=False)
-    raw_prepro.plot_ICA()
-    sys.exit()
 # %%
 sys.exit()
 
+raw_prepro.plot_ICA()
+event_id, events = raw_prepro.get_events()
+epochs = raw_prepro.epoching(event_id, events, tmin=-0.7, tmax=0.7)
+epochs.save(paths_dic['out'] + '/epoched/' + subject + '-epo.fif')
+sys.exit()
+############### TEMP ##############
+import mne
+from mne import setup_volume_source_space, setup_source_space
+from mne import make_forward_solution
+from mne.minimum_norm import make_inverse_operator, apply_inverse_epochs
+from mne.connectivity import spectral_connectivity
+
+
+paths_dic['FS'] = path_gen + "/Freesurfer_children"
+FS_subj = op.join(paths_dic['FS'], subject)
+
+spacing = 'oct5'
+fname_trans = op.join(FS_subj, subject + '-trans.fif')
+fname_bem = op.join(FS_subj, '%s-bem_sol.fif' % subject)
+fname_src = op.join(FS_subj, 'bem', '%s-src.fif' % spacing)
+
+src = mne.read_source_spaces(fname_src)
+fwd = make_forward_solution(raw_prepro.raw.info, fname_trans, src, fname_bem)
+
+cov = mne.compute_covariance(epochs, method='auto')
+
+inv = mne.minimum_norm.make_inverse_operator(raw_prepro.raw.info, fwd, cov, loose=0.2)
+
+evoked = epochs.average()
+stc = mne.minimum_norm.apply_inverse(evoked, inv, lambda2=1. / 9.)
+
+surfer_kwargs = dict(hemi='split', subjects_dir=paths_dic['FS'],
+                     subject=subject, views=['lateral', 'medial'],
+                     clim=dict(kind='value', lims=[80, 97.5,100]),time_viewer=True,
+                     size=(2000, 2000), background='white', initial_time=0.1)
+
+stc.plot(surface='inflated', **surfer_kwargs)
+
+
+
+
+
+
 # %% Events
 #events, event_id  = raw_prepro.get_events(plot=1)
+
+
 
 
 """
@@ -97,20 +140,4 @@ sys.exit()
 #
 #raw_copy.verbose = 'INFO'
 
-
-
-ecchan = ['MLF13-4704',
- 'MLF12-4704',
- 'MLF14-4704',
- 'MLF21-4704',
- 'MLF22-4704',
- 'MLF23-4704',
- 'MLF24-4704',
- 'MLF31-4704',
- 'MLF25-4704',
- 'MRT51-4704',
- 'MLT51-4704',
- 'MLT41-4704',
- 'MLT31-4704',
- 'MLT21-4704']
 """

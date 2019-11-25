@@ -303,7 +303,8 @@ class MNEprepro():
         print(str(N_samples) + ' samples with ' + str(fs) + ' Hz sampl rate')
         print('Total time = ' + str(time) + 's')
         # get photodiode events from CTF data
-        PD_ts, Ind_PD_ON, Ind_PD_OFF, T_PD = get_photodiode_events(raw_copy,fs)
+        PD_ts, Ind_PD_ON, Ind_PD_OFF, T_PD = get_photodiode_events(raw_copy,
+                                                                   fs)
         # pick Trigger channel time series from CTF data
         Trig = mne.io.pick.pick_channels_regexp(raw_copy.info['ch_names'],
                                                 'UPPT001')
@@ -311,18 +312,15 @@ class MNEprepro():
         # get events from trigger channel
         events_trig = mne.find_events(raw_copy, stim_channel='UPPT001',
                                       shortest_event=1)
-        
+
         print(str(len(Ind_PD_ON)) + ' PD ONSETS FOUND')
-        
-                
-        if task == 'Car':
+
+        if task == 'CarTask':
             event_id = {'Transp/H2L': 10, 'Transp/L2H': 20,
                         'NotTransp/H2L': 30, 'NotTransp/L2H': 40}
             # get trigger names for PD ON states
             events = get_triger_names_PD(event_id, Ind_PD_ON, events_trig)
-            
         elif task == 'Movie':
-            
             event_id = {'SceneOnset': 1}
             events = np.zeros((len(Ind_PD_ON), 3))
             events[:, 0] = Ind_PD_ON
