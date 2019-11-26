@@ -48,7 +48,7 @@ pth_tmp = op.join(op.expanduser(paths_dic["root"]), '18011*')
 Subj_list = sorted(glob.glob(pth_tmp))
 
 # %%
-for iSubj in Subj_list[3:]:
+for iSubj in Subj_list:
 
     subject = op.basename(iSubj)
     print('Preprocessing subject: ' + subject)
@@ -63,16 +63,21 @@ for iSubj in Subj_list[3:]:
     raw_prepro.detect_bad_channels(zscore_v=4, overwrite=False)
 
     # %% Detect and reject moving periods
-    raw_prepro.detect_movement(plot=False)
+    raw_prepro.detect_movement(plot=True)
 
     # %% Muscle artifacts
     raw_prepro.detect_muscle(overwrite=False, plot=True)
     # %%Run
-    raw_prepro.run_ICA(overwrite=False)
+    try:
+        raw_prepro.run_ICA(overwrite=False)
+        raw_prepro.plot_ICA()
+    except IndexError:
+        continue
+
 # %%
 sys.exit()
 
-raw_prepro.plot_ICA()
+
 event_id, events = raw_prepro.get_events()
 epochs = raw_prepro.epoching(event_id, events, tmin=-0.7, tmax=0.7)
 epochs.save(paths_dic['out'] + '/epoched/' + subject + '-epo.fif')

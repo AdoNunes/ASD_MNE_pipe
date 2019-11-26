@@ -190,7 +190,7 @@ class MNEprepro():
         self.raw.info['dev_head_t'] = dev_head_t
         self.annot_movement = mov_annot
 
-    def detect_muscle(self, thr=1.5, t_min=2, plot=True, overwrite=False):
+    def detect_muscle(self, thr=1.5, t_min=.5, plot=True, overwrite=False):
         """Find and annotate mucsle artifacts - by Luke Bloy"""
         fname = self.subject + '_' + self.experiment + '_mus.txt'
         out_csv_f = op.join(self.out_annot, fname)
@@ -253,7 +253,7 @@ class MNEprepro():
                            n_components=0.99, max_iter=1000)
             picks = mne.pick_types(raw_copy.info, meg=True, ref_meg=False,
                                    stim=False, exclude='bads')
-            reject = dict(grad=4000e-13, mag=4e-12)  # what rejec intervals?
+            reject = dict(grad=4000e-13, mag=6e-12)  # what rejec intervals?
             self.ica.fit(raw_copy, picks=picks, reject=reject, decim=3)
             self.ica.detect_artifacts(raw_copy)
             self.ica.done = False
@@ -265,7 +265,6 @@ class MNEprepro():
         # Load previous ICA instance
         if op.exists(out_fname) and not overwrite:
             self.ica = mne.preprocessing.read_ica(out_fname)
-            self.ica.info['description'] == 'done'
         else:
             self.run_ICA(self)
         # Check if ICA comps were inspected
@@ -281,10 +280,13 @@ class MNEprepro():
             self.ica.plot_components(inst=raw_copy)
             self.ica.plot_sources(raw_copy, block=True)
             # Clean and raw sensor plotting
-            raw_copy.plot(n_channels=136, title='NO ICA')
+
+            raw_plot = raw_copy.copy().pick_types(meg=True, ref_meg=False)
+            raw_plot.plot(n_channels=80, title='NO ICA')
+
             raw_ica = raw_copy.copy().pick_types(meg=True, ref_meg=False)
             self.ica.apply(raw_ica)
-            raw_ica.plot(n_channels=136, title='ICA cleaned', block=True)
+            raw_ica.plot(n_channels=80, title='ICA cleaned', block=True)
             data_not_clean = bool(int(input("Select other ICA components? "
                                             "[0-no, 1-yes]: ")))
             if data_not_clean is False:
