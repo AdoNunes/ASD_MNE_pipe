@@ -27,7 +27,7 @@ pth_tmp = op.join(op.expanduser(paths_dic["root"]), '18011*', '*' +
 Subj_list = [op.dirname(x) for x in sorted(glob.glob(pth_tmp))]
 
 
-save_epo_no_musc = True
+use_muscle_annot = False
 
 # %%
 
@@ -37,76 +37,66 @@ def piepline(iSubj):
     print('Preprocessing subject: ' + subject)
 
     # %% Create Class object
-    try:
-        raw_prepro = MNEprepro(subject, experiment, paths_dic)
-    except IndexError:
-        return
-#
-#    # %% Detect and reject bad channels
-#    raw_prepro.detect_bad_channels(zscore_v=4, overwrite=False)
-#
-#    # %% Detect and reject moving periods
-#    raw_prepro.detect_movement(plot=True)
-#
-#    # %% Muscle artifacts
-#    if save_epo_no_musc is not True:
-#        raw_prepro.detect_muscle(overwrite=False, plot=True)
-#
-#    # %%Run ICA
+    raw_prepro = MNEprepro(subject, experiment, paths_dic)
+
+    # %% Detect and reject bad channels
+    raw_prepro.detect_bad_channels(zscore_v=4, overwrite=False)
+
+    # %% Detect and reject moving periods
+    raw_prepro.detect_movement(plot=True)
+
+    # %% Muscle artifacts
+    if use_muscle_annot is True:
+        raw_prepro.detect_muscle(overwrite=False, plot=True)
+
+    # %%Run ICA
 #    try:
-#        raw_prepro.run_ICA(overwrite=False)
-#        raw_prepro.plot_ICA()
+    raw_prepro.run_ICA(overwrite=False)
+    raw_prepro.plot_ICA()
 #    except RuntimeError:
 #        return
-#
-#    # %%Create epochs
-##    try:
-##        raw_prepro.epoching(tmin=-0.7, tmax=0.7)
-##    except ValueError:
-##        return
+
+    # %%Create epochs
+    raw_prepro.epoching(tmin=-0.7, tmax=0.7)
 
     # %%Create forward mddelling
     raw_prepro.src_modelling(overwrite=False)
-
+    return raw_prepro
 # %%
 
 
-[piepline(iSubj) for iSubj in Subj_list[0:1]]
+raw_prepro = [piepline(iSubj) for iSubj in Subj_list[0:1]]
 
 
 sys.exit()
 ############### TEMP ##############
 import mne
-from mne import make_forward_solution
 from mne.minimum_norm import make_inverse_operator, apply_inverse_epochs
 from mne.connectivity import spectral_connectivity
 
 
 
+raw_prepro = raw_prepro[0]
 
 
-FS_subj = op.join(paths_dic['FS'], subject)
+noise_cov = mne.compute_covariance(raw_prepro.epochs,tmax=0, method='auto')
+fig_cov, fig_spectra = mne.viz.plot_cov(noise_cov, raw_prepro.epochs.info)
 
-spacing = 'oct5'
-fname_trans = op.join(FS_subj, subject + '-trans.fif')
-fname_bem = op.join(FS_subj, '%s-bem_sol.fif' % subject)
-fname_src = op.join(FS_subj, 'bem', '%s-src.fif' % spacing)
+fwd_fixed = mne.convert_forward_solution(raw_prepro.fwr, surf_ori=True,
+                                         force_fixed=True, use_cps=True)
+
+inv = make_inverse_operator(raw_prepro.raw.info, fwd_fixed, noise_cov, loose=0.2)
+
+evoked = raw_prepro.epochs.average()
+
+evoked.plot(time_unit='s')
+evoked.plot_topomap(times=[-.5, 0, .4], time_unit='s')
+
+# Show whitening
+evoked.plot_white(noise_cov, time_unit='s')
 
 
-
-
-
-fwd = make_forward_solution(raw_prepro.raw.info, fname_trans, src, fname_bem)
-mne.write_forward_solution(fname_fwd, fwd)
-
-
-cov = mne.compute_covariance(epochs, method='auto')
-
-
-inv = mne.minimum_norm.make_inverse_operator(raw_prepro.raw.info, fwd, cov, loose=0.2)
-
-evoked = epochs.average()
-stc = mne.minimum_norm.apply_inverse(evoked, inv, lambda2=1. / 9.)
+stc = apply_inverse(evoked, inv, lambda2=1. / 9.)
 
 surfer_kwargs = dict(hemi='split', subjects_dir=paths_dic['FS'],
                      subject=subject, views=['lateral', 'medial'],

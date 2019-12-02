@@ -296,6 +296,7 @@ class MNEprepro():
             if data_not_clean is False:
                 self.ica.info['description'] = 'done'
                 self.ica.save(out_fname)
+        self.ica.apply(self.raw.load_data())
 
     def get_events(self, plot=False):
         # general description of the data
@@ -397,7 +398,7 @@ class MNEprepro():
                 src.save(fname_src, overwrite=overwrite)
 
             if op.exists(fname_fwr) and not overwrite:
-                read_forward_solution(fname_fwr)
+                self.fwr = read_forward_solution(fname_fwr)
             else:
                 fwd = make_forward_solution(self.raw.info, fname_trans,
                                             fname_src, fname_bem)
