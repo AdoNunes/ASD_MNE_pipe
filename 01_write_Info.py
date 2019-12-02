@@ -5,7 +5,7 @@ Created on Tue Nov 12 07:51:19 2019
 
 @author: nkozhemi
 
-This script save subjects info in fif format in Fresurfer folder. Info file is 
+This script save subjects info in fif format in Fresurfer folder. Info file is
 subsequently used during corregistration
 
 Note! before running this script make sure to run MNE_anatomical.sh from your

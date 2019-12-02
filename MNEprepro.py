@@ -76,6 +76,8 @@ class MNEprepro():
         self.experiment = experiment
         self.pth_root = op.expanduser(paths_dic["root"])
         self.pth_out = op.expanduser(paths_dic["out"])
+        self.pth_FS = op.expanduser(paths_dic["FS"])
+        mne.set_config('SUBJECTS_DIR', self.pth_FS)
         self.check_outdir()
         self.pth_subject = op.join(self.pth_root, subject)
         self.pth_raw = glob.glob(op.join(self.pth_subject, subject) + '_' +
@@ -90,9 +92,11 @@ class MNEprepro():
         self.out_bd_ch = op.join(out_dir, 'bad_chans')
         self.out_annot = op.join(out_dir, 'annots')
         self.out_ICAs = op.join(out_dir, 'ICAs')
+        self.out_srcData = op.join(out_dir, 'data2src')
         makedirs(self.out_bd_ch, exist_ok=True)  # I want to loop it
         makedirs(self.out_annot, exist_ok=True)
         makedirs(self.out_ICAs, exist_ok=True)
+        makedirs(self.out_srcData, exist_ok=True)
 
     def detect_bad_channels(self, zscore_v=4, overwrite=False, method='both',
                             neigh_max_distance=.035):
@@ -293,7 +297,7 @@ class MNEprepro():
                 self.ica.info['description'] = 'done'
                 self.ica.save(out_fname)
 
-    def get_events(self, plot=True):
+    def get_events(self, plot=False):
         # general description of the data
         raw_copy = self.raw.copy()
         task = self.experiment
@@ -342,15 +346,62 @@ class MNEprepro():
             plt.figure()
             plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events,
                         task, ID)
-        return event_id, events
+        self.event_id = event_id
+        self.events = events
 
-    def epoching(self, event_id, events, tmin=-0.4, tmax=0.5):
-        raw_copy = self.raw.copy().load_data().filter(1, 45) \
-                    .pick_types(meg=True, ref_meg=False)
-        epochs = mne.Epochs(raw_copy, events=events, event_id=event_id,
-                            tmin=tmin, tmax=tmax, baseline=(tmin, 0.0),
-                            picks=('meg'))
-        return epochs
+    def epoching(self, tmin=-0.5, tmax=0.5, plot=False, f_min=1, f_max=45,
+                 overwrite=False):
+        fname = self.subject + '_' + self.experiment + '-epo.fif'
+        out_fname = self.out_srcData + '/' + fname
+
+        if op.exists(out_fname) and not overwrite:
+            print('Reading epoched data from file')
+            self.epochs = mne.read_epochs(out_fname)
+
+        else:
+            self.get_events(plot)
+            raw_copy = self.raw.copy().load_data()
+            raw_copy.pick_types(meg=True, ref_meg=False).filter(f_min, f_max)
+            epochs = mne.Epochs(raw_copy, events=self.events, tmin=tmin,
+                                tmax=tmax, event_id=self.event_id,
+                                baseline=(tmin, 0.0), picks=('meg'))
+            self.epochs = epochs
+
+    def src_modelling(self, spacing=['oct5'], overwrite=False):
+        from mne import (read_forward_solution, make_forward_solution,
+                         write_forward_solution, setup_source_space)
+        subject = self.subject
+        mne.set_config('SUBJECTS_DIR', self.pth_FS)
+        FS_subj = op.join(self.pth_FS, subject)
+        fname_trans = op.join(FS_subj, subject + '-trans.fif')
+        fname_bem = op.join(FS_subj, '%s-bem_sol.fif' % subject)
+
+        if not op.exists(fname_bem) or overwrite:
+            mne.bem.make_watershed_bem(subject, overwrite=True,
+                                       volume='T1', atlas=True, gcaatlas=False,
+                                       preflood=None)
+
+            model = mne.make_bem_model(subject, ico=4, conductivity=(0.3,))
+            bem = mne.make_bem_solution(model)
+            mne.write_bem_solution(fname_bem, bem)
+        else:
+            bem = mne.read_bem_solution(fname_bem)
+
+        for space in spacing:
+            fname_src = op.join(FS_subj, 'bem', '%s-src.fif' % space)
+            bname_fwr = '%s_%s-fwd.fif' % (subject, space)
+            fname_fwr = op.join(self.out_srcData, bname_fwr)
+            if not op.exists(fname_src) or overwrite:
+                src = setup_source_space(subject, space,
+                                         subjects_dir=self.pth_FS)
+                src.save(fname_src, overwrite=overwrite)
+
+            if op.exists(fname_fwr) and not overwrite:
+                read_forward_solution(fname_fwr)
+            else:
+                fwd = make_forward_solution(self.raw.info, fname_trans,
+                                            fname_src, fname_bem)
+                self.fwr = write_forward_solution(fname_fwr, fwd, overwrite)
 
 
 ##################################################################
@@ -382,9 +433,9 @@ def get_photodiode_events(raw, fs, plot=False):
     min_samp4 = round(t_min * fs/4)  # quater PD min length
     min_samp8 = round(t_min * fs/8)  # 1/8 PD min length
     for ind, n in enumerate(T_PD[0, :]):
-        if (n == True and T_PD[0, ind-1] == False and
-            np.all(T_PD[0, ind-min_samp8:ind-1] == False) and
-            np.all(T_PD[0, ind+min_samp8:ind+min_samp4] == True)):
+        if (n is True and T_PD[0, ind-1] is False and
+            np.all(T_PD[0, ind-min_samp8:ind-1] is False) and
+            np.all(T_PD[0, ind+min_samp8:ind+min_samp4] is True)):
             Ind_PD_ON.append(ind)
         elif (n == False and T_PD[0, ind-1] == True and
               np.all(T_PD[0, ind-min_samp8:ind-1] == True) and
