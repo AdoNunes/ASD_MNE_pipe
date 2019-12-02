@@ -21,8 +21,11 @@ subject = '18011045C'  # example
 # options 'Movie', 'CarTask', 'Flanker'
 experiment = 'CarTask'
 
-pth_tmp = op.join(op.expanduser(paths_dic["root"]), '18011*')
-Subj_list = sorted(glob.glob(pth_tmp))
+# Get list of sibjects with experiment recording
+pth_tmp = op.join(op.expanduser(paths_dic["root"]), '18011*', '*' +
+                  experiment + '*')
+Subj_list = [op.dirname(x) for x in sorted(glob.glob(pth_tmp))]
+
 
 save_epo_no_musc = True
 
@@ -68,7 +71,7 @@ def piepline(iSubj):
 # %%
 
 
-[piepline(iSubj) for iSubj in Subj_list]
+[piepline(iSubj) for iSubj in Subj_list[0:1]]
 
 
 sys.exit()
