@@ -296,7 +296,7 @@ class MNEprepro():
             if data_not_clean is False:
                 self.ica.info['description'] = 'done'
                 self.ica.save(out_fname)
-        self.ica.apply(self.raw.load_data())
+        #self.ica.apply(self.raw.load_data())
 
     def get_events(self, plot=False):
         # general description of the data
@@ -351,7 +351,7 @@ class MNEprepro():
         self.events = events
 
     def epoching(self, tmin=-0.5, tmax=0.5, plot=False, f_min=1, f_max=45,
-                 overwrite=False):
+                 overwrite=False, apply_ica=True):
         fname = self.subject + '_' + self.experiment + '-epo.fif'
         out_fname = self.out_srcData + '/' + fname
 
@@ -367,6 +367,8 @@ class MNEprepro():
                                 tmax=tmax, event_id=self.event_id,
                                 baseline=(tmin, 0.0), picks=('meg'))
             self.epochs = epochs
+        if apply_ica is True:
+            self.ica.apply(self.epochs.load_data())
 
     def src_modelling(self, spacing=['oct5'], overwrite=False):
         from mne import (read_forward_solution, make_forward_solution,
@@ -434,9 +436,9 @@ def get_photodiode_events(raw, fs, plot=False):
     min_samp4 = round(t_min * fs/4)  # quater PD min length
     min_samp8 = round(t_min * fs/8)  # 1/8 PD min length
     for ind, n in enumerate(T_PD[0, :]):
-        if (n is True and T_PD[0, ind-1] is False and
-            np.all(T_PD[0, ind-min_samp8:ind-1] is False) and
-            np.all(T_PD[0, ind+min_samp8:ind+min_samp4] is True)):
+        if (n == True and T_PD[0, ind-1] == False and
+            np.all(T_PD[0, ind-min_samp8:ind-1] == False) and
+            np.all(T_PD[0, ind+min_samp8:ind+min_samp4] == True)):
             Ind_PD_ON.append(ind)
         elif (n == False and T_PD[0, ind-1] == True and
               np.all(T_PD[0, ind-min_samp8:ind-1] == True) and

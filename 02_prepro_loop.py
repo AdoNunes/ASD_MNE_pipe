@@ -57,7 +57,7 @@ def piepline(iSubj):
 #        return
 
     # %%Create epochs
-    raw_prepro.epoching(tmin=-0.7, tmax=0.7)
+    raw_prepro.epoching(overwrite=True, tmin=-0.7, tmax=0.7)
 
     # %%Create forward mddelling
     raw_prepro.src_modelling(overwrite=False)
