@@ -20,7 +20,7 @@ def set_paths():
         paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
         import appnope
         appnope.nope()
-    elif Host == 'sc-155028' or Host == 'sc-155014':
+    elif Host == 'sc-157028' or Host == 'sc-155014':
         paths_dic['root'] = "~/Desktop/REPO/MEG_repo/MEG_children_rs"
         paths_dic['FS'] = "~/Desktop/REPO/MEG_repo/Freesurfer_children"
         paths_dic['out'] = "~/Desktop/projects/MNE/data_prep"
