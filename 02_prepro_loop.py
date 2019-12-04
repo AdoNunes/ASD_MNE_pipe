@@ -26,13 +26,12 @@ pth_tmp = op.join(op.expanduser(paths_dic["root"]), '18011*', '*' +
                   experiment + '*')
 Subj_list = [op.dirname(x) for x in sorted(glob.glob(pth_tmp))]
 
-
-use_muscle_annot = False
-
 # %%
 
 
-def piepline(iSubj):
+def piepline(iSubj, opt):
+    ''' Function for running preprocessing steps '''
+
     subject = op.basename(iSubj)
     print('Preprocessing subject: ' + subject)
 
@@ -40,32 +39,47 @@ def piepline(iSubj):
     raw_prepro = MNEprepro(subject, experiment, paths_dic)
 
     # %% Detect and reject bad channels
-    raw_prepro.detect_bad_channels(zscore_v=4, overwrite=False)
+    if opt['bad_chans'] is True:
+        raw_prepro.detect_bad_channels(zscore_v=4, overwrite=False)
 
     # %% Detect and reject moving periods
-    raw_prepro.detect_movement(overwrite=False, plot=False)
+    if opt['movement']is True:
+        raw_prepro.detect_movement(overwrite=False, plot=False)
 
-    # %% Muscle artifacts
-    if use_muscle_annot is True:
+    # %% Detect and reject periods with muscle
+    if opt['muscle'] is True:
         raw_prepro.detect_muscle(overwrite=False, plot=True)
 
     # %%Run ICA
-#    try:
-    raw_prepro.run_ICA(overwrite=False)
-    raw_prepro.plot_ICA()
-#    except RuntimeError:
-#        return
+    try:
+        if opt['ICA_run'] is True:
+            raw_prepro.run_ICA(overwrite=False)
+        if opt['ICA_plot'] is True:
+            raw_prepro.plot_ICA()
+    except RuntimeError:
+        return
 
     # %%Create epochs
-    raw_prepro.epoching(overwrite=True, tmin=-0.7, tmax=0.7)
+    if opt['epoching'] is True:
+        raw_prepro.epoching(overwrite=False, tmin=-0.7, tmax=0.7)
 
     # %%Create forward mddelling
-    raw_prepro.src_modelling(overwrite=False)
+    if opt['src_model'] is True:
+        raw_prepro.src_modelling(overwrite=False)
     return raw_prepro
 # %%
 
 
-raw_prepro = [piepline(iSubj) for iSubj in Subj_list]
+options_run = dict()
+options_run['bad_chans'] = True
+options_run['movement'] = True
+options_run['muscle'] = True
+options_run['ICA_run'] = True
+options_run['ICA_plot'] = True
+options_run['epoching'] = True
+options_run['src_model'] = True
+
+raw_prepro = [piepline(iSubj, options_run) for iSubj in Subj_list[-6:]]
 
 
 sys.exit()
