@@ -366,9 +366,10 @@ class MNEprepro():
             epochs = mne.Epochs(raw_copy, events=self.events, tmin=tmin,
                                 tmax=tmax, event_id=self.event_id,
                                 baseline=(tmin, 0.0), picks=('meg'))
-            self.epochs = epochs
-        if apply_ica is True:
-            self.ica.apply(self.epochs.load_data())
+            self.epochs = epochs.load_data()
+            if apply_ica is True:
+                self.ica.apply(self.epochs)
+            self.epochs.save(out_fname, overwrite=overwrite)
 
     def src_modelling(self, spacing=['oct5'], overwrite=False):
         from mne import (read_forward_solution, make_forward_solution,

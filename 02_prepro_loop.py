@@ -43,7 +43,7 @@ def piepline(iSubj):
     raw_prepro.detect_bad_channels(zscore_v=4, overwrite=False)
 
     # %% Detect and reject moving periods
-    raw_prepro.detect_movement(plot=True)
+    raw_prepro.detect_movement(overwrite=False, plot=False)
 
     # %% Muscle artifacts
     if use_muscle_annot is True:
@@ -65,7 +65,7 @@ def piepline(iSubj):
 # %%
 
 
-raw_prepro = [piepline(iSubj) for iSubj in Subj_list[0:1]]
+raw_prepro = [piepline(iSubj) for iSubj in Subj_list]
 
 
 sys.exit()
@@ -80,15 +80,16 @@ raw_prepro = raw_prepro[0]
 
 
 noise_cov = mne.compute_covariance(raw_prepro.epochs,tmax=0, method='auto')
+
 fig_cov, fig_spectra = mne.viz.plot_cov(noise_cov, raw_prepro.epochs.info)
 
 fwd_fixed = mne.convert_forward_solution(raw_prepro.fwr, surf_ori=True,
                                          force_fixed=True, use_cps=True)
 
-inv = make_inverse_operator(raw_prepro.raw.info, fwd_fixed, noise_cov, loose=0.2)
+inv = make_inverse_operator(raw_prepro.raw.info, fwd_fixed, noise_cov,
+                            loose=0.2)
 
 evoked = raw_prepro.epochs.average()
-
 evoked.plot(time_unit='s')
 evoked.plot_topomap(times=[-.5, 0, .4], time_unit='s')
 
