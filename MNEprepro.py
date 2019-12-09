@@ -330,8 +330,7 @@ class MNEprepro():
             # get trigger names for PD ON states
             events = get_triger_names_PD(event_id, Ind_PD_ON, events_trig)
             all_trl_info = get_all_trl_info(event_id, Ind_PD_ON,
-                                                        Ind_PD_OFF,
-                                                        events_trig)
+                                            Ind_PD_OFF, events_trig)
             self.all_trl_info = all_trl_info
         elif task == 'Movie':
             event_id = {'SceneOnset': 1}
@@ -370,14 +369,26 @@ class MNEprepro():
         else:
             self.get_events(plot)
             raw_copy = self.raw.copy().load_data()
-            raw_copy.pick_types(meg=True, ref_meg=False).filter(f_min, f_max)
+            info = raw_copy.info
+            picks = mne.pick_types(info, meg=True, ref_meg=False)
+            stim_ch = ['UADC015-3007', 'UPPT001']
+            pick_stim = mne.pick_channels(info['ch_names'], stim_ch)
+            pick_epo = np.append(picks, pick_stim)
+            raw_copy.pick(pick_epo)
+
+            pick_fil = mne.pick_types(raw_copy.info, meg=True, ref_meg=False)
+            raw_copy.filter(f_min, f_max, picks=pick_fil)
+
             epochs = mne.Epochs(raw_copy, events=self.events, tmin=tmin,
                                 tmax=tmax, event_id=self.event_id,
-                                baseline=(tmin, 0.0), picks=('meg'))
-            self.epochs = epochs.load_data()
+                                baseline=(tmin, 0.0)).load_data()
+            self.epochs = epochs
             if apply_ica is True:
-                if hasattr(self, 'ica'):
-                    self.ica.apply(self.epochs)
+                if hasattr(self, 'ica'):  # Do ICA only on meg chns
+                    piks = mne.pick_types(epochs.info, meg=True)
+                    epochs_data = epochs.copy().pick(piks)
+                    self.ica.apply(epochs_data)
+                    self.epochs._data[:, piks, :] = epochs_data._data
                 else:
                     return
             self.epochs.save(out_fname, overwrite=overwrite)

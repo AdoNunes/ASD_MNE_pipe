@@ -29,9 +29,10 @@ Subj_list = [op.dirname(x) for x in sorted(glob.glob(pth_tmp))]
 # %%
 
 
-def piepline(iSubj, opt):
+def piepline(iSubj, option):
     ''' Function for running preprocessing steps '''
 
+    o = option
     subject = op.basename(iSubj)
     print('Preprocessing subject: ' + subject)
 
@@ -39,49 +40,49 @@ def piepline(iSubj, opt):
     raw_prepro = MNEprepro(subject, experiment, paths_dic)
 
     # %% Detect and reject bad channels
-    if opt['bad_chans'] is True:
-        raw_prepro.detect_bad_channels(zscore_v=4, overwrite=False)
-        raw_prepro.raw.load_data().interpolate_bads(origin=[0, 0, 0])
+    if o['bad_chns'][0] is True:
+        raw_prepro.detect_bad_channels(zscore_v=4, overwrite=o['bad_chns'][1])
+        raw_prepro.raw.load_data().interpolate_bads(origin=[0, 0, 40])
     # %% Detect and reject moving periods
-    if opt['movement']is True:
-        raw_prepro.detect_movement(overwrite=False, plot=False)
+    if o['movement'][0] is True:
+        raw_prepro.detect_movement(overwrite=o['movement'][1], plot=False)
 
     # %% Detect and reject periods with muscle
-    if opt['muscle'] is True:
-        raw_prepro.detect_muscle(overwrite=False, plot=True)
+    if o['muscle'][0] is True:
+        raw_prepro.detect_muscle(overwrite=o['muscle'][1], plot=True)
 
     # %%Run ICA
     try:
-        if opt['ICA_run'] is True:
-            raw_prepro.run_ICA(overwrite=False)
-        if opt['ICA_plot'] is True:
+        if o['ICA_run'][0] is True:
+            raw_prepro.run_ICA(overwrite=o['ICA_run'][1])
+        if o['ICA_plot'][0] is True:
             raw_prepro.plot_ICA()
     except RuntimeError:
         return
 
     # %%Create epochs
-    if opt['epoching'] is True:
-        raw_prepro.epoching(overwrite=False, tmin=-0.7, tmax=0.7, plot=True)
+    if o['epoching'][0] is True:
+        raw_prepro.epoching(tmin=-0.7, tmax=0.7, overwrite=o['epoching'][1])
 
     # %%Create forward mddelling
-    if opt['src_model'] is True:
-        raw_prepro.src_modelling(overwrite=False)
+    if o['src_model'][0] is True:
+        raw_prepro.src_modelling(overwrite=o['src_model'][1])
     return raw_prepro
 # %%
 
 
-options_run = dict()
-options_run['bad_chans'] = True
-options_run['movement'] = True
-options_run['muscle'] = False
-options_run['ICA_run'] = False
-options_run['ICA_plot'] = True
-options_run['epoching'] = True
-options_run['src_model'] = False
+opt_run_overwrite = dict()
+opt_run_overwrite['bad_chns'] = [True, False]
+opt_run_overwrite['movement'] = [True, False]
+opt_run_overwrite['muscle'] = [False, False]
+opt_run_overwrite['ICA_run'] = [True, False]
+opt_run_overwrite['ICA_plot'] = [True, False]
+opt_run_overwrite['epoching'] = [False, True]
+opt_run_overwrite['src_model'] = [False, False]
 
 import time
 start = time.time()
-raw_prepro = [piepline(iSubj, options_run) for iSubj in Subj_list[27:]]
+raw_prepro = [piepline(iSubj, opt_run_overwrite) for iSubj in Subj_list[0:1]][-1]
 end = time.time() - start
 
 sys.exit()
