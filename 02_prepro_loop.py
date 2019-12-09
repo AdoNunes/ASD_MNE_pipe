@@ -41,7 +41,7 @@ def piepline(iSubj, opt):
     # %% Detect and reject bad channels
     if opt['bad_chans'] is True:
         raw_prepro.detect_bad_channels(zscore_v=4, overwrite=False)
-
+        raw_prepro.raw.load_data().interpolate_bads(origin=[0, 0, 0])
     # %% Detect and reject moving periods
     if opt['movement']is True:
         raw_prepro.detect_movement(overwrite=False, plot=False)
@@ -61,7 +61,7 @@ def piepline(iSubj, opt):
 
     # %%Create epochs
     if opt['epoching'] is True:
-        raw_prepro.epoching(overwrite=False, tmin=-0.7, tmax=0.7)
+        raw_prepro.epoching(overwrite=False, tmin=-0.7, tmax=0.7, plot=True)
 
     # %%Create forward mddelling
     if opt['src_model'] is True:
@@ -73,14 +73,16 @@ def piepline(iSubj, opt):
 options_run = dict()
 options_run['bad_chans'] = True
 options_run['movement'] = True
-options_run['muscle'] = True
-options_run['ICA_run'] = True
+options_run['muscle'] = False
+options_run['ICA_run'] = False
 options_run['ICA_plot'] = True
 options_run['epoching'] = True
-options_run['src_model'] = True
+options_run['src_model'] = False
 
-raw_prepro = [piepline(iSubj, options_run) for iSubj in Subj_list[-6:]]
-
+import time
+start = time.time()
+raw_prepro = [piepline(iSubj, options_run) for iSubj in Subj_list[27:]]
+end = time.time() - start
 
 sys.exit()
 ############### TEMP ##############
@@ -89,8 +91,53 @@ from mne.minimum_norm import make_inverse_operator, apply_inverse_epochs
 from mne.connectivity import spectral_connectivity
 
 
+outdir = paths_dic['data2src'] + '/*_' + experiment + '-epo.fif'
+subj_epo = sorted(glob.glob(outdir))
 
-raw_prepro = raw_prepro[0]
+crown = ['18011007', '18011008', '18011029', '18011032', '18011039']
+subj_epo = [s for s in subj_epo if not any(ignore in s for ignore in crown)]
+
+subj_ix = {}
+subj_ix['all'] = list(range(len(subj_epo)))
+subj_ix['ASD'] = [s for s in range(len(subj_epo)) if 'A' in op.basename(subj_epo[s])[8]]
+subj_ix['CTR'] = [s for s in range(len(subj_epo)) if 'C' in op.basename(subj_epo[s])[8]]
+
+
+# Get conditions names and create containers
+evoked_all = dict()
+conditions = mne.read_epochs(Subj_list_epo[0]).event_id.keys()
+for c in conditions:
+    evoked_all[c] = []
+
+# Get evoked data
+for iSubj in Subj_list_epo:
+    epochs = mne.read_epochs(iSubj)
+    for c in conditions:
+        evoked_all[c].append(epochs[c].copy().average())
+
+grp = ['all', 'ASD', 'CTR']
+for g in grp:
+    gix = subj_ix[g]
+
+    for c in conditions:
+        evoked_grp = [evoked_all[c][i] for i in gix]
+        mne.combine_evoked(evoked_grp, 'nave').plot_joint(title=g + ' ' + c)
+
+
+
+mne.viz.plot_arrowmap(evoked, evoked.info)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 noise_cov = mne.compute_covariance(raw_prepro.epochs,tmax=0, method='auto')

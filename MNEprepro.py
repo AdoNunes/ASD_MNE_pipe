@@ -270,7 +270,8 @@ class MNEprepro():
         if op.exists(out_fname) and not overwrite:
             self.ica = mne.preprocessing.read_ica(out_fname)
         else:
-            self.run_ICA(self)
+            # self.run_ICA(self)
+            return
         # Check if ICA comps were inspected
         data_not_clean = True
         if check_if_done is True:
@@ -368,7 +369,10 @@ class MNEprepro():
                                 baseline=(tmin, 0.0), picks=('meg'))
             self.epochs = epochs.load_data()
             if apply_ica is True:
-                self.ica.apply(self.epochs)
+                if hasattr(self, 'ica'):
+                    self.ica.apply(self.epochs)
+                else:
+                    return
             self.epochs.save(out_fname, overwrite=overwrite)
 
     def src_modelling(self, spacing=['oct5'], overwrite=False):
