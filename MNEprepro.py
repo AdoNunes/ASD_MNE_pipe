@@ -14,6 +14,7 @@ import pandas as pd
 from scipy.ndimage.measurements import label
 from mne.io.ctf.trans import _quaternion_align
 from mne.chpi import _apply_quat
+import math
 
 
 class MNEprepro():
@@ -327,11 +328,16 @@ class MNEprepro():
                         'NotTransp/H2L': 30, 'NotTransp/L2H': 40}
             # get trigger names for PD ON states
             events = get_triger_names_PD(event_id, Ind_PD_ON, events_trig)
+            all_trl_info = get_all_trl_info(event_id, Ind_PD_ON,
+                                                        Ind_PD_OFF,
+                                                        events_trig)
+            self.all_trl_info = all_trl_info
         elif task == 'Movie':
             event_id = {'SceneOnset': 1}
             events = np.zeros((len(Ind_PD_ON), 3))
             events[:, 0] = Ind_PD_ON
             events[:, 2] = 1
+            all_trl_info = None
 
         elif task == 'Flanker':
             event_id = {'Incongruent/Left': 3, 'Incongruent/Right': 5,
@@ -340,13 +346,14 @@ class MNEprepro():
                         'Reward/Neut_FaceTRL': 9, 'Reward/Neut_CoinTRL': 10}
             # get trigger names for PD ON states
             events = get_triger_names_PD(event_id, Ind_PD_ON, events_trig)
+            all_trl_info = None
 
         events = events.astype(np.int64)
         # plot trig and PD
         if plot:
             plt.figure()
             plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events,
-                        task, ID)
+                        task, ID, all_trl_info=all_trl_info)
         self.event_id = event_id
         self.events = events
 
@@ -448,18 +455,27 @@ def get_photodiode_events(raw, fs, plot=False):
     return PD_ts, Ind_PD_ON, Ind_PD_OFF, T_PD
 
 
-def plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events, task, ID):
+def plot_events(PD_ts, Ind_PD_ON, T_PD, Ind_PD_OFF, Trig_ts, events, task, ID,
+                all_trl_info=None):
 
     plt.plot((PD_ts[0, :]))
     plt.plot(T_PD[0, :]*5)
     y = np.ones((1, len(Ind_PD_ON)))
-    y = y = 0.5*y
+    y = 0.5*y
     plt.plot(np.array(Ind_PD_ON), y[0, :], 'o', color='black')
     y = np.ones((1, len(Ind_PD_OFF)))
-    y = y = 0.5*y
+    y = 0.5*y
     plt.plot(np.array(Ind_PD_OFF), y[0, :], 'o', color='red')
     plt.plot(events[:, 0], events[:, 2], 'o', color='green')
     plt.plot((Trig_ts[0, :]))
+    if task == 'CarTask':
+        resp = []
+        for ind, n in enumerate(all_trl_info[:, 4]):
+            if not math.isnan(n):
+                resp.append(n+all_trl_info[ind, 2])
+        y = np.ones((1, len(resp)))
+        y = 4*y
+        plt.plot(resp, y[0, :], 'o', color='blue')
     plt.ylabel('a.u.')
     plt.xlabel('samples')
     plt.title('PD and Trigger events timing for ' + ID + ' ' + task + ' task')
@@ -479,6 +495,60 @@ def get_triger_names_PD(event_id, Ind_PD_ON, events_trig):
                 m = min(inx[inx > 0])
                 events[inx == m, 2] = value
     return events
+
+
+def get_all_trl_info(event_id, Ind_PD_ON, Ind_PD_OFF, events_trig):
+    # create additional object (1st col - trig start, 2nd col - PDon, 3rd col -
+    # PDoff, 4th col - trig ID, 5th col - PDoff-Resp)
+    Trig_PDon_off = np.zeros((len(Ind_PD_ON), 5))
+    Trig_PDon_off[:, 1] = Ind_PD_ON
+    if len(Ind_PD_ON) != len(Ind_PD_OFF):
+        Ind_PD_OFF_cor = []
+        for t in Ind_PD_ON:
+            t1 = (np.array(Ind_PD_OFF)-t)
+            m = min(i for i in t1 if i > 0)
+            t2 = list(np.where(t1 == m))
+            Ind_PD_OFF_cor.append(Ind_PD_OFF[t2[0][0]])
+        Ind_PD_OFF = Ind_PD_OFF_cor
+    Trig_PDon_off[:, 2] = Ind_PD_OFF
+    # get trigger names for PD ON states
+    for key, value in event_id.items():
+        ind = events_trig[:, 2] == value
+        time = events_trig[ind, 0]
+        for n in time:
+            inx = (Ind_PD_ON-n)
+            if np.any(inx[inx > 0]):
+                m = min(inx[inx > 0])
+                # events[inx == m, 2] = value
+                Trig_PDon_off[inx == m, 3] = value
+                Trig_PDon_off[inx == m, 0] = n
+    # compute response time (PDoff - resp)
+    all_trl_info = get_response(Trig_PDon_off, events_trig)
+    return all_trl_info
+
+
+def get_response(Trig_PDon_off, events_trig):
+    # compute time of response compare to PD offset
+
+    all_trl_info = Trig_PDon_off
+    for ind, n in enumerate(Trig_PDon_off):
+        # find trigger value 1 in between PD on and next trial trigger
+        Tunnel_in = Trig_PDon_off[ind, 1]
+        if ind+1 == len(Trig_PDon_off):
+            Next_trial = Tunnel_in + 900
+        else:
+            Next_trial = Trig_PDon_off[ind+1, 0]
+        resp = []
+        for res_ind in events_trig:
+            if (res_ind[2] == 1 and res_ind[0] > Tunnel_in and res_ind[0]
+                < Next_trial):
+                resp.append(res_ind[0])
+        # if there is more than one trig 1 (multiple button presses) - put NaN
+        if len(resp) == 1:
+            all_trl_info[ind, 4] = resp - Trig_PDon_off[ind, 2]
+        else:
+            all_trl_info[ind, 4] = float('nan')
+    return all_trl_info
 
 
 #########################################################
