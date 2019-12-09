@@ -332,6 +332,12 @@ class MNEprepro():
             all_trl_info = get_all_trl_info(event_id, Ind_PD_ON,
                                             Ind_PD_OFF, events_trig)
             self.all_trl_info = all_trl_info
+            # get different event length for each condition
+            event_len = {'Transp/H2L': [-.86, 2.42],
+                         'Transp/L2H': [-3.17, 2.1],
+                         'NotTransp/H2L': [-.9, 2.37],
+                         'NotTransp/L2H': [-3.17, 2.1]}
+            self.event_len = event_len
         elif task == 'Movie':
             event_id = {'SceneOnset': 1}
             events = np.zeros((len(Ind_PD_ON), 3))
@@ -358,8 +364,12 @@ class MNEprepro():
         self.events = events
 
     def epoching(self, tmin=-0.5, tmax=0.5, plot=False, f_min=1, f_max=45,
-                 overwrite=False, apply_ica=True):
-        fname = self.subject + '_' + self.experiment + '-epo.fif'
+                 overwrite=False, apply_ica=True, cond_name=None):
+        if cond_name is not None:
+            fname = "%s_%s_%s-epo.fif" % (self.subject,self.experiment,
+                                          cond_name)
+        else:
+            fname = "%s_%s-epo.fif" % (self.subject,self.experiment)
         out_fname = self.out_srcData + '/' + fname
 
         if op.exists(out_fname) and not overwrite:
@@ -378,10 +388,19 @@ class MNEprepro():
 
             pick_fil = mne.pick_types(raw_copy.info, meg=True, ref_meg=False)
             raw_copy.filter(f_min, f_max, picks=pick_fil)
+            if cond_name is not None:  # Different conds diff lengths
+                event = self.events
+                ids = self.event_id[cond_name]
+                tmin, tmax = self.event_len[cond_name]
+                events = event[event[:,2]== ids]
 
-            epochs = mne.Epochs(raw_copy, events=self.events, tmin=tmin,
-                                tmax=tmax, event_id=self.event_id,
-                                baseline=(tmin, 0.0)).load_data()
+                epochs = mne.Epochs(raw_copy, events=events, tmin=tmin,
+                                    tmax=tmax, event_id=ids,
+                                    baseline=(tmin, 0.0)).load_data()
+            else:
+                epochs = mne.Epochs(raw_copy, events=self.events, tmin=tmin,
+                                    tmax=tmax, event_id=self.event_id,
+                                    baseline=(tmin, 0.0)).load_data()
             self.epochs = epochs
             if apply_ica is True:
                 if hasattr(self, 'ica'):  # Do ICA only on meg chns

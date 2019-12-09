@@ -61,15 +61,18 @@ def piepline(iSubj, option):
         return
 
     # %%Create epochs
-    if o['epoching'][0] is True:
-        raw_prepro.epoching(tmin=-0.7, tmax=0.7, overwrite=o['epoching'][1])
+    if o['epking'][0] is True:
+        raw_prepro.epoching(overwrite=o['epking'][1], cond_name=o['epking'][2])
 
     # %%Create forward mddelling
     if o['src_model'][0] is True:
         raw_prepro.src_modelling(overwrite=o['src_model'][1])
-    return raw_prepro
+
+    return raw_prepro.epochs
 # %%
 
+
+Car_task_cond = ('Transp/H2L', 'Transp/L2H', 'NotTransp/H2L', 'NotTransp/L2H')
 
 opt_run_overwrite = dict()
 opt_run_overwrite['bad_chns'] = [True, False]
@@ -77,12 +80,12 @@ opt_run_overwrite['movement'] = [True, False]
 opt_run_overwrite['muscle'] = [False, False]
 opt_run_overwrite['ICA_run'] = [True, False]
 opt_run_overwrite['ICA_plot'] = [True, False]
-opt_run_overwrite['epoching'] = [False, True]
+opt_run_overwrite['epking'] = [True, True, Car_task_cond[1]]
 opt_run_overwrite['src_model'] = [False, False]
 
 import time
 start = time.time()
-raw_prepro = [piepline(iSubj, opt_run_overwrite) for iSubj in Subj_list[0:1]][-1]
+raw_prepro = [piepline(iSubj, opt_run_overwrite) for iSubj in Subj_list]
 end = time.time() - start
 
 sys.exit()
