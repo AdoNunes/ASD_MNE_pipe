@@ -366,10 +366,10 @@ class MNEprepro():
     def epoching(self, tmin=-0.5, tmax=0.5, plot=False, f_min=1, f_max=45,
                  overwrite=False, apply_ica=True, cond_name=None):
         if cond_name is not None:
-            fname = "%s_%s_%s-epo.fif" % (self.subject,self.experiment,
-                                          cond_name)
+            fname = "%s_%s_%s-epo.fif" % (self.subject, self.experiment,
+                                          cond_name.replace('/', ''))
         else:
-            fname = "%s_%s-epo.fif" % (self.subject,self.experiment)
+            fname = "%s_%s-epo.fif" % (self.subject, self.experiment)
         out_fname = self.out_srcData + '/' + fname
 
         if op.exists(out_fname) and not overwrite:
@@ -392,10 +392,9 @@ class MNEprepro():
                 event = self.events
                 ids = self.event_id[cond_name]
                 tmin, tmax = self.event_len[cond_name]
-                events = event[event[:,2]== ids]
-
+                events = event[event[:, 2] == ids]
                 epochs = mne.Epochs(raw_copy, events=events, tmin=tmin,
-                                    tmax=tmax, event_id=ids,
+                                    tmax=tmax, event_id={cond_name: ids},
                                     baseline=(tmin, 0.0)).load_data()
             else:
                 epochs = mne.Epochs(raw_copy, events=self.events, tmin=tmin,

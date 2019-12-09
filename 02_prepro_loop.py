@@ -72,7 +72,7 @@ def piepline(iSubj, option):
 # %%
 
 
-Car_task_cond = ('Transp/H2L', 'Transp/L2H', 'NotTransp/H2L', 'NotTransp/L2H')
+Car_task_cond = ['Transp/H2L', 'Transp/L2H', 'NotTransp/H2L', 'NotTransp/L2H']
 
 opt_run_overwrite = dict()
 opt_run_overwrite['bad_chns'] = [True, False]
@@ -80,13 +80,18 @@ opt_run_overwrite['movement'] = [True, False]
 opt_run_overwrite['muscle'] = [False, False]
 opt_run_overwrite['ICA_run'] = [True, False]
 opt_run_overwrite['ICA_plot'] = [True, False]
-opt_run_overwrite['epking'] = [True, True, Car_task_cond[1]]
+opt_run_overwrite['epking'] = [True, False, None]  # None=take all conditions
 opt_run_overwrite['src_model'] = [False, False]
 
-import time
-start = time.time()
+# %% Make epochs with different conditions length
+
+for i in range(0,1):
+    opt_run_overwrite['epking'][2] = Car_task_cond[i]
+    raw_prepro = [piepline(iSubj, opt_run_overwrite) for iSubj in Subj_list[0:1]]
+
+
 raw_prepro = [piepline(iSubj, opt_run_overwrite) for iSubj in Subj_list]
-end = time.time() - start
+
 
 sys.exit()
 ############### TEMP ##############
