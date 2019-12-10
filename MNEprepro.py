@@ -300,7 +300,7 @@ class MNEprepro():
                 self.ica.save(out_fname)
         #self.ica.apply(self.raw.load_data())
 
-    def get_events(self, plot=False):
+    def get_events(self, plot=False, movie_annot=None):
         # general description of the data
         raw_copy = self.raw.copy()
         task = self.experiment
@@ -338,11 +338,18 @@ class MNEprepro():
                          'NotTransp/H2L': [-.9, 2.37],
                          'NotTransp/L2H': [-3.17, 2.1]}
             self.event_len = event_len
+            
         elif task == 'Movie':
-            event_id = {'SceneOnset': 1}
-            events = np.zeros((len(Ind_PD_ON), 3))
-            events[:, 0] = Ind_PD_ON
-            events[:, 2] = 1
+            if movie_annot is not None:
+                if fs != 600:
+                    raise ValueError('Sampling must be 600Hz')
+                event_id, events = get_pd_annotations(Ind_PD_ON, events_trig,
+                                                      movie_annot)
+            else:
+                event_id = {'SceneOnset': 1}
+                events = np.zeros((len(Ind_PD_ON), 3))
+                events[:, 0] = Ind_PD_ON
+                events[:, 2] = 1
             all_trl_info = None
 
         elif task == 'Flanker':
@@ -584,6 +591,43 @@ def get_response(Trig_PDon_off, events_trig):
     return all_trl_info
 
 
+def get_pd_annotations(Ind_PD_ON, events_trig, movie_annot):
+    # creates event id and event file based on movie annotation
+    # find 1st PD of the 2nd movie presentation
+    n = np.where(events_trig[:, 2] == 4)
+    n = n[0][1]
+    trig_time = events_trig[n, 0]
+    diff_time = Ind_PD_ON - trig_time
+    pd_val = min(pp for pp in diff_time if pp > 0)
+    pd_ind = np.where(diff_time == pd_val)
+    PD = [Ind_PD_ON[0], Ind_PD_ON[pd_ind[0][0]]]
+    i = 0
+    cond = ['faces', 'facesNO', 'grasp', 'graspNO']
+    for PD_i in PD:
+        for c in cond:
+            events_tmp = np.zeros((len(movie_annot[c][0, :]), 3))
+            events_tmp[:, 0] = movie_annot[c][0, :] + PD_i
+            events_tmp[:, 2] = movie_annot[c][1, :]
+            if i == 0:
+                events1 = events_tmp
+            else:
+                events1 = np.vstack([events1, events_tmp])
+            i += 1
+    # delete repeted triggers
+    uniq, ind = np.unique(events1[:, 0], return_index=True)
+    events = events1[ind, :]
+    event_id = {'Face/Face_only': 1, 'Face/Face_hands': 12,
+                'Face/Face_shapes': 14, 'Face/Face_body': 15,
+                'Hand/Hand_only': 2, 'Hand/Hand_face': 21,
+                'Hand/Hand_body': 25, 'Hand/Hand_letters': 23,
+                'Hand/Hand_shapes': 24, 'Body/Body_only': 5,
+                'Body/Body_hands': 52, 'Body/Body_shapes': 54,
+                'Body/Body_back': 55, 'Body/Body_distant': 255,
+                'Other/letters': 3, 'Other/Lanscapes': 4,
+                'Other/Landscape_letters': 43, 'Other/Landscape_hands': 42,
+                'Other/Landscape_body': 45}
+    
+    return event_id, events
 #########################################################
 #####   Motion artifacts and head pos correction   ######
 #########################################################
