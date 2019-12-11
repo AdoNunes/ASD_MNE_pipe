@@ -595,7 +595,7 @@ def get_pd_annotations(Ind_PD_ON, events_trig, movie_annot):
     # creates event id and event file based on movie annotation
     # find 1st PD of the 2nd movie presentation
     n = np.where(events_trig[:, 2] == 4)
-    n = n[0][1]
+    n = n[0][-1:]
     trig_time = events_trig[n, 0]
     diff_time = Ind_PD_ON - trig_time
     pd_val = min(pp for pp in diff_time if pp > 0)
@@ -616,6 +616,11 @@ def get_pd_annotations(Ind_PD_ON, events_trig, movie_annot):
     # delete repeted triggers
     uniq, ind = np.unique(events1[:, 0], return_index=True)
     events = events1[ind, :]
+    # Pick events closest to PD and replace them with PD_on time
+    for pd_time in Ind_PD_ON:
+        ind = np.argmin(np.absolute(events[:, 0] - pd_time))
+        events[ind, 0] = pd_time
+    # create correspondng event ID
     event_id = {'Face/Face_only': 1, 'Face/Face_hands': 12,
                 'Face/Face_shapes': 14, 'Face/Face_body': 15,
                 'Hand/Hand_only': 2, 'Hand/Hand_face': 21,
