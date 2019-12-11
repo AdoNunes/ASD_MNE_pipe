@@ -616,6 +616,10 @@ def get_pd_annotations(Ind_PD_ON, events_trig, movie_annot):
     # delete repeted triggers
     uniq, ind = np.unique(events1[:, 0], return_index=True)
     events = events1[ind, :]
+    # Pick events closest to PD and replace them with PD_on time
+    for pd_time in Ind_PD_ON:
+        ind = np.argmin(np.absolute(events[:, 0] - pd_time))
+        events[ind, 0] = pd_time
     event_id = {'Face/Face_only': 1, 'Face/Face_hands': 12,
                 'Face/Face_shapes': 14, 'Face/Face_body': 15,
                 'Hand/Hand_only': 2, 'Hand/Hand_face': 21,
