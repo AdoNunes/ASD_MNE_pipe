@@ -42,8 +42,8 @@ def piepline(iSubj, option):
     # %% Detect and reject bad channels
     if o['bad_chns'][0] is True:
         raw_prepro.detect_bad_channels(zscore_v=4, overwrite=o['bad_chns'][1])
-        if raw_prepro.all_trl_info
-        raw_prepro.raw.load_data().interpolate_bads(origin=[0, 0, 40])
+        if not raw_prepro.info['bads']:
+            raw_prepro.raw.load_data().interpolate_bads(origin=[0, 0, 40])
     # %% Detect and reject moving periods
     if o['movement'][0] is True:
         raw_prepro.detect_movement(overwrite=o['movement'][1], plot=False)
@@ -85,7 +85,7 @@ opt_run_overwrite['epking'] = [True, True, None]  # None=take all conditions
 opt_run_overwrite['src_model'] = [False, False]
 
 # %% Make epochs with different conditions length
-for i in range(1,4):
+for i in range(1, 4):
     opt_run_overwrite['epking'][2] = Car_task_cond[i]
     raw_prepro = [piepline(iSubj, opt_run_overwrite) for iSubj in Subj_list]
 
