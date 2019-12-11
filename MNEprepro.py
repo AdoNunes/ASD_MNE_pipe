@@ -371,7 +371,8 @@ class MNEprepro():
         self.events = events
 
     def epoching(self, tmin=-0.5, tmax=0.5, plot=False, f_min=1, f_max=45,
-                 overwrite=False, apply_ica=True, cond_name=None):
+                 overwrite=False, apply_ica=True, cond_name=None, 
+                 movie_annot=None):
         if cond_name is not None:
             fname = "%s_%s_%s-epo.fif" % (self.subject, self.experiment,
                                           cond_name.replace('/', ''))
@@ -384,7 +385,7 @@ class MNEprepro():
             self.epochs = mne.read_epochs(out_fname)
 
         else:
-            self.get_events(plot)
+            self.get_events(plot, movie_annot)
             raw_copy = self.raw.copy().load_data()
             info = raw_copy.info
             picks = mne.pick_types(info, meg=True, ref_meg=False)
