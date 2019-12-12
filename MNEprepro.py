@@ -329,16 +329,17 @@ class MNEprepro():
                         'NotTransp/H2L': 30, 'NotTransp/L2H': 40}
             # get trigger names for PD ON states
             events = get_triger_names_PD(event_id, Ind_PD_ON, events_trig)
-            all_trl_info = get_all_trl_info(event_id, Ind_PD_ON,
-                                            Ind_PD_OFF, events_trig)
+            all_trl_info, col_info = get_all_trl_info(event_id, Ind_PD_ON,
+                                                      Ind_PD_OFF, events_trig)
             self.all_trl_info = all_trl_info
+            self.all_trl_info_col_names = col_info
             # get different event length for each condition
             event_len = {'Transp/H2L': [-.86, 2.42],
-                         'Transp/L2H': [-3.17, 2.1],
+                         'Transp/L2H': [-3.17, 2.3],
                          'NotTransp/H2L': [-.9, 2.37],
                          'NotTransp/L2H': [-3.17, 2.1]}
             self.event_len = event_len
-            
+
         elif task == 'Movie':
             if movie_annot is not None:
                 if fs != 600:
@@ -371,7 +372,7 @@ class MNEprepro():
         self.events = events
 
     def epoching(self, tmin=-0.5, tmax=0.5, plot=False, f_min=1, f_max=45,
-                 overwrite=False, apply_ica=True, cond_name=None, 
+                 overwrite=False, apply_ica=True, cond_name=None,
                  movie_annot=None):
         if cond_name is not None:
             fname = "%s_%s_%s-epo.fif" % (self.subject, self.experiment,
@@ -491,8 +492,25 @@ def get_photodiode_events(raw, fs, plot=False):
             Ind_PD_ON.append(ind)
         elif (n == False and T_PD[0, ind-1] == True and
               np.all(T_PD[0, ind-min_samp8:ind-1] == True) and
-              np.all(T_PD[0, ind+min_samp8:ind+min_samp4] == False)):
+              np.all(T_PD[0, ind+min_samp8:ind+min_samp4] == False) and ind>0):
             Ind_PD_OFF.append(ind)
+    # PD on and PD off have to be the same length
+    if len(Ind_PD_ON) < len(Ind_PD_OFF):
+        Ind_PD_OFF_cor = []
+        for t in Ind_PD_ON:
+            t1 = (np.array(Ind_PD_OFF)-t)
+            m = min(i for i in t1 if i > 0)
+            t2 = list(np.where(t1 == m))
+            Ind_PD_OFF_cor.append(Ind_PD_OFF[t2[0][0]])
+        Ind_PD_OFF = Ind_PD_OFF_cor
+    elif len(Ind_PD_ON) > len(Ind_PD_OFF):
+        Ind_PD_ON_cor = []
+        for t in Ind_PD_OFF:
+            t1 = (np.array(Ind_PD_ON)-t) * -1
+            m = min(i for i in t1 if i > 0)
+            t2 = list(np.where(t1 == m))
+            Ind_PD_ON_cor.append(Ind_PD_ON[t2[0][0]])
+        Ind_PD_ON = Ind_PD_ON_cor
     return PD_ts, Ind_PD_ON, Ind_PD_OFF, T_PD
 
 
@@ -541,16 +559,10 @@ def get_triger_names_PD(event_id, Ind_PD_ON, events_trig):
 def get_all_trl_info(event_id, Ind_PD_ON, Ind_PD_OFF, events_trig):
     # create additional object (1st col - trig start, 2nd col - PDon, 3rd col -
     # PDoff, 4th col - trig ID, 5th col - PDoff-Resp)
+    all_trl_info_col_names = ['Trig_start', 'PD_on', 'PD_off', 'Trig_ID',
+                              'PDoff-Resp']
     Trig_PDon_off = np.zeros((len(Ind_PD_ON), 5))
     Trig_PDon_off[:, 1] = Ind_PD_ON
-    if len(Ind_PD_ON) != len(Ind_PD_OFF):
-        Ind_PD_OFF_cor = []
-        for t in Ind_PD_ON:
-            t1 = (np.array(Ind_PD_OFF)-t)
-            m = min(i for i in t1 if i > 0)
-            t2 = list(np.where(t1 == m))
-            Ind_PD_OFF_cor.append(Ind_PD_OFF[t2[0][0]])
-        Ind_PD_OFF = Ind_PD_OFF_cor
     Trig_PDon_off[:, 2] = Ind_PD_OFF
     # get trigger names for PD ON states
     for key, value in event_id.items():
@@ -565,7 +577,7 @@ def get_all_trl_info(event_id, Ind_PD_ON, Ind_PD_OFF, events_trig):
                 Trig_PDon_off[inx == m, 0] = n
     # compute response time (PDoff - resp)
     all_trl_info = get_response(Trig_PDon_off, events_trig)
-    return all_trl_info
+    return all_trl_info, all_trl_info_col_names
 
 
 def get_response(Trig_PDon_off, events_trig):
@@ -596,7 +608,7 @@ def get_pd_annotations(Ind_PD_ON, events_trig, movie_annot):
     # creates event id and event file based on movie annotation
     # find 1st PD of the 2nd movie presentation
     n = np.where(events_trig[:, 2] == 4)
-    n = n[0][1]
+    n = n[0][-1]
     trig_time = events_trig[n, 0]
     diff_time = Ind_PD_ON - trig_time
     pd_val = min(pp for pp in diff_time if pp > 0)
