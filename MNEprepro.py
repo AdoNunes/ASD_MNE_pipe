@@ -373,7 +373,7 @@ class MNEprepro():
 
     def epoching(self, tmin=-0.5, tmax=0.5, plot=False, f_min=1, f_max=45,
                  overwrite=False, apply_ica=True, cond_name=None,
-                 movie_annot=None):
+                 movie_annot=None, save=True):
         if cond_name is not None:
             fname = "%s_%s_%s-epo.fif" % (self.subject, self.experiment,
                                           cond_name.replace('/', ''))
@@ -442,19 +442,44 @@ class MNEprepro():
 
         for space in spacing:
             fname_src = op.join(FS_subj, 'bem', '%s-src.fif' % space)
-            bname_fwr = '%s_%s-fwd.fif' % (subject, space)
-            fname_fwr = op.join(self.out_srcData, bname_fwr)
+            bname_fwd = '%s_%s-fwd.fif' % (subject, space)
+            fname_fwd = op.join(self.out_srcData, bname_fwd)
             if not op.exists(fname_src) or overwrite:
                 src = setup_source_space(subject, space,
                                          subjects_dir=self.pth_FS)
                 src.save(fname_src, overwrite=overwrite)
 
-            if op.exists(fname_fwr) and not overwrite:
-                self.fwr = read_forward_solution(fname_fwr)
+            if op.exists(fname_fwd) and not overwrite:
+                self.fwd = read_forward_solution(fname_fwd)
             else:
                 fwd = make_forward_solution(self.raw.info, fname_trans,
                                             fname_src, fname_bem)
-                self.fwr = write_forward_solution(fname_fwr, fwd, overwrite)
+                self.fwd = write_forward_solution(fname_fwd, fwd, overwrite)
+
+    def mne_cov(self, overwrite=False):
+        from mne import compute_covariance, read_cov
+        fname = self.subject + '_' + self.experiment + '_ncov-cov.fif.gz'
+        out_fname = op.join(self.out_srcData, fname)
+        if op.exists(out_fname) and not overwrite:
+            print('Reading noise covariance from file')
+            self.ncov = read_cov(out_fname)
+        else:
+            self.ncov = compute_covariance(self.epochs, tmax=0, method='shrunk')
+            self.ncov.save(out_fname)
+
+    def mne_inv_operator(self, overwrite=False):
+        from mne.minimum_norm import (read_inverse_operator,
+                                      make_inverse_operator,
+                                      write_inverse_operator)
+        fname = self.subject + '_' + self.experiment + '_mne-inv.fif.gz'
+        out_fname = op.join(self.out_srcData, fname)
+        if op.exists(out_fname) and not overwrite:
+            print('Reading inverse operator from file')
+            self.inv = read_inverse_operator(out_fname)
+        else:
+            self.inv = make_inverse_operator(self.epochs.info, self.fwd,
+                                             self.ncov, loose=0.2, depth=0.8)
+            write_inverse_operator(out_fname, self.inv)
 
 
 ##################################################################

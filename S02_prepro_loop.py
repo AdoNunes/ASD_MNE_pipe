@@ -74,6 +74,16 @@ def piepline(iSubj, option):
     if o['src_model'][0] is True:
         raw_prepro.src_modelling(overwrite=o['src_model'][1])
 
+    # %%Create noise cov for mne
+    if o['mne_ncov'][0] is True:
+        if o['epking'][2] is not None:  # "Here all cond epochs will be taken"
+            raw_prepro.epoching(overwrite=o['epking'][1], cond_name=None)
+        raw_prepro.mne_cov(overwrite=o['mne_ncov'][1])
+
+    # %%Create mne inverse operator
+    if o['mne_inv'][0] is True:
+        raw_prepro.mne_inv_operator(overwrite=o['mne_inv'][1])
+
     return raw_prepro
 # %%
 
@@ -83,15 +93,17 @@ def main():
 
 if __name__ == "__main__":
     Car_task_cond = ['Transp/H2L', 'Transp/L2H', 'NotTransp/H2L', 'NotTransp/L2H']
-    
+
     opt_run_overwrite = dict()
     opt_run_overwrite['bad_chns'] = [True, False]
     opt_run_overwrite['movement'] = [True, False]
     opt_run_overwrite['muscle'] = [False, False]
     opt_run_overwrite['ICA_run'] = [True, False]
     opt_run_overwrite['ICA_plot'] = [True, False]
-    opt_run_overwrite['epking'] = [True, True, None]  # None=take all conditions
-    opt_run_overwrite['src_model'] = [False, False]
+    opt_run_overwrite['epking'] = [True, True, None]  # None=take all cond.
+    opt_run_overwrite['src_model'] = [True, False]
+    opt_run_overwrite['mne_ncov'] = [True, True]
+    opt_run_overwrite['mne_inv'] = [True, True]
 
     Subj_list = get_subjects(experiment)
 
@@ -142,22 +154,13 @@ if __name__ == "__main__":
         for c in conditions:
             evoked_grp = [evoked_all[c][i] for i in gix]
             mne.combine_evoked(evoked_grp, 'nave').plot_joint(title=g + ' ' + c)
-    
-    
-    
+
     mne.viz.plot_arrowmap(evoked, evoked.info)
 
 
 
 
 
-
-
-
-
-
-
-    
     noise_cov = mne.compute_covariance(raw_prepro.epochs,tmax=0, method='auto')
     
     fig_cov, fig_spectra = mne.viz.plot_cov(noise_cov, raw_prepro.epochs.info)
