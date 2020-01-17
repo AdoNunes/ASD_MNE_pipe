@@ -81,11 +81,15 @@ class MNEprepro():
         mne.set_config('SUBJECTS_DIR', self.pth_FS)
         self.check_outdir()
         self.pth_subject = op.join(self.pth_root, subject)
-        self.pth_raw = glob.glob(op.join(self.pth_subject, subject) + '_' +
-                                 experiment + '*')[-1]
-        self.raw = mne.io.read_raw_ctf(self.pth_raw, preload=False)
-        if self.raw.compensation_grade != 3:
-            self.raw.apply_gradient_compensation(3)
+        if self.check_MXfilter_sbjs() is True:
+            print('Using MaxFilter preprocessed data')
+            self.raw = mne.io.read_raw_fif(self.pth_raw, preload=False)
+        else:
+            self.pth_raw = glob.glob(op.join(self.pth_subject, subject) + '_'
+                                     + experiment + '*')[-1]
+            self.raw = mne.io.read_raw_ctf(self.pth_raw, preload=False)
+            if self.raw.compensation_grade != 3:
+                self.raw.apply_gradient_compensation(3)
 
     def check_outdir(self):
         from os import makedirs
@@ -98,6 +102,16 @@ class MNEprepro():
         makedirs(self.out_annot, exist_ok=True)
         makedirs(self.out_ICAs, exist_ok=True)
         makedirs(self.out_srcData, exist_ok=True)
+
+    def check_MXfilter_sbjs(self):
+        pth_mx_sbj = self.pth_out + '/MX_filter_subj/' + self.subject
+        if op.exists(pth_mx_sbj):
+            self.pth_raw = glob.glob(op.join(pth_mx_sbj, self.subject +
+                                             '_' + self.experiment + '*'))[-1]
+            is_MX = True
+        else:
+            is_MX = False
+        return is_MX
 
     def detect_bad_channels(self, zscore_v=4, overwrite=False, method='both',
                             neigh_max_distance=.035):
@@ -452,9 +466,9 @@ class MNEprepro():
             if op.exists(fname_fwd) and not overwrite:
                 self.fwd = read_forward_solution(fname_fwd)
             else:
-                fwd = make_forward_solution(self.raw.info, fname_trans,
-                                            fname_src, fname_bem)
-                self.fwd = write_forward_solution(fname_fwd, fwd, overwrite)
+                self.fwd = make_forward_solution(self.raw.info, fname_trans,
+                                                 fname_src, fname_bem)
+                write_forward_solution(fname_fwd, self.fwd, overwrite)
 
     def mne_cov(self, overwrite=False):
         from mne import compute_covariance, read_cov

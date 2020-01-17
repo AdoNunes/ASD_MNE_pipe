@@ -91,6 +91,7 @@ def piepline(iSubj, option):
 def main():
     pass
 
+
 if __name__ == "__main__":
     Car_task_cond = ['Transp/H2L', 'Transp/L2H', 'NotTransp/H2L', 'NotTransp/L2H']
 
@@ -98,12 +99,12 @@ if __name__ == "__main__":
     opt_run_overwrite['bad_chns'] = [True, False]
     opt_run_overwrite['movement'] = [True, False]
     opt_run_overwrite['muscle'] = [False, False]
-    opt_run_overwrite['ICA_run'] = [True, False]
-    opt_run_overwrite['ICA_plot'] = [True, False]
-    opt_run_overwrite['epking'] = [True, True, None]  # None=take all cond.
-    opt_run_overwrite['src_model'] = [True, False]
-    opt_run_overwrite['mne_ncov'] = [True, True]
-    opt_run_overwrite['mne_inv'] = [True, True]
+    opt_run_overwrite['ICA_run'] = [False, False]
+    opt_run_overwrite['ICA_plot'] = [False, False]
+    opt_run_overwrite['epking'] = [False, False, None]  # None=take all cond.
+    opt_run_overwrite['src_model'] = [False, False]
+    opt_run_overwrite['mne_ncov'] = [False, False]
+    opt_run_overwrite['mne_inv'] = [False, False]
 
     Subj_list = get_subjects(experiment)
 
@@ -111,11 +112,10 @@ if __name__ == "__main__":
     for i in range(1, 4):
         opt_run_overwrite['epking'][2] = Car_task_cond[i]
         raw_prepro = [piepline(iSubj, opt_run_overwrite) for iSubj in Subj_list]
-    
+
     # %% Epochs all together
     raw_prepro = [piepline(iSubj, opt_run_overwrite) for iSubj in Subj_list]
-    
-    
+
     sys.exit()
     ############### TEMP ##############
     import mne
