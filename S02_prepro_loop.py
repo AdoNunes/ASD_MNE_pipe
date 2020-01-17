@@ -47,7 +47,7 @@ def piepline(iSubj, option):
     # %% Detect and reject bad channels
     if o['bad_chns'][0] is True:
         raw_prepro.detect_bad_channels(zscore_v=4, overwrite=o['bad_chns'][1])
-        if not raw_prepro.raw.info['bads']:
+        if not raw_prepro.raw.info['bads'] == []:
             raw_prepro.raw.load_data().interpolate_bads(origin=[0, 0, 40])
     # %% Detect and reject moving periods
     if o['movement'][0] is True:
@@ -97,8 +97,8 @@ if __name__ == "__main__":
 
     opt_run_overwrite = dict()
     opt_run_overwrite['bad_chns'] = [True, False]
-    opt_run_overwrite['movement'] = [True, False]
-    opt_run_overwrite['muscle'] = [False, False]
+    opt_run_overwrite['movement'] = [False, False]
+    opt_run_overwrite['muscle'] = [True, False]
     opt_run_overwrite['ICA_run'] = [False, False]
     opt_run_overwrite['ICA_plot'] = [False, False]
     opt_run_overwrite['epking'] = [False, False, None]  # None=take all cond.
