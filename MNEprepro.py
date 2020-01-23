@@ -447,17 +447,18 @@ class MNEprepro():
         from mne import (read_forward_solution, make_forward_solution,
                          write_forward_solution, setup_source_space)
         subject = self.subject
+        task = self.experiment
         mne.set_config('SUBJECTS_DIR', self.pth_FS)
         FS_subj = op.join(self.pth_FS, subject)
         fname_trans = op.join(FS_subj, subject + '-trans.fif')
         fname_bem = op.join(FS_subj, '%s-bem_sol.fif' % subject)
 
         if not op.exists(fname_bem) or overwrite:
-            mne.bem.make_watershed_bem(subject, overwrite=True,
-                                       volume='T1', atlas=True, gcaatlas=False,
-                                       preflood=None)
-
-            model = mne.make_bem_model(subject, ico=4, conductivity=(0.3,))
+            # make_watershed_bem already run in the sh script
+#            mne.bem.make_watershed_bem(subject, overwrite=True,
+#                                       volume='T1', atlas=True, gcaatlas=False,
+#                                       preflood=None)
+            model = mne.make_bem_model(subject, ico=5, conductivity=[0.3])
             bem = mne.make_bem_solution(model)
             mne.write_bem_solution(fname_bem, bem)
         else:
@@ -465,7 +466,7 @@ class MNEprepro():
 
         for space in spacing:
             fname_src = op.join(FS_subj, 'bem', '%s-src.fif' % space)
-            bname_fwd = '%s_%s-fwd.fif' % (subject, space)
+            bname_fwd = '%s_%s_%s-fwd.fif' % (subject, task, space)
             fname_fwd = op.join(self.out_srcData, bname_fwd)
             if not op.exists(fname_src) or overwrite:
                 src = setup_source_space(subject, space,

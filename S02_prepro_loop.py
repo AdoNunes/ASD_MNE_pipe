@@ -100,11 +100,11 @@ if __name__ == "__main__":
     opt_run_overwrite['movement'] = [False, False]
     opt_run_overwrite['muscle'] = [True, False]
     opt_run_overwrite['ICA_run'] = [True, False]
-    opt_run_overwrite['ICA_plot'] = [True, False]
-    opt_run_overwrite['epking'] = [False, False, None]  # None=take all cond.
-    opt_run_overwrite['src_model'] = [False, False]
-    opt_run_overwrite['mne_ncov'] = [False, False]
-    opt_run_overwrite['mne_inv'] = [False, False]
+    opt_run_overwrite['ICA_plot'] = [False, False]  # if clean no nned to run
+    opt_run_overwrite['epking'] = [True, False, None]  # None=take all cond.
+    opt_run_overwrite['src_model'] = [True, True]
+    opt_run_overwrite['mne_ncov'] = [True, False]
+    opt_run_overwrite['mne_inv'] = [True, True]
 
     Subj_list = get_subjects(experiment)
 
