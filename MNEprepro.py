@@ -251,7 +251,9 @@ class MNEprepro():
                                                              ref_meg=False)
                 raw.notch_filter(np.arange(60, 181, 60), fir_design='firwin')
                 raw.filter(1, 140)
-                raw.set_annotations(raw.annotations + mus_annot)
+                old_annot = raw.annotations #  if orig_time cant + none
+                raw.set_annotations(mus_annot)
+                raw.set_annotations(raw.annotations + old_annot)
                 raw.plot(n_channels=140, block=True, bad_color='r')
                 mus_annot = raw.annotations
                 if not (old_bd_chns == raw.info['bads']):
