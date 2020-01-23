@@ -458,7 +458,7 @@ class MNEprepro():
 #            mne.bem.make_watershed_bem(subject, overwrite=True,
 #                                       volume='T1', atlas=True, gcaatlas=False,
 #                                       preflood=None)
-            model = mne.make_bem_model(subject, ico=5, conductivity=[0.3])
+            model = mne.make_bem_model(subject, ico=4, conductivity=[0.3])
             bem = mne.make_bem_solution(model)
             mne.write_bem_solution(fname_bem, bem)
         else:
